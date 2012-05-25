@@ -1,7 +1,7 @@
 <?php
 
 
-function get_cli_args() {
+function cli_args_parse() {
 	global $argv;
 
 	$configList = array();

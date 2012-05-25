@@ -8,7 +8,7 @@ class Zmws_Worker_Sleep extends Zmws_Worker_Base {
 
 
 	public function work($jobid, $param='') {
-		echo "sleeping for $jobid\n";
+		echo "sleeping for job: $jobid\n";
 		usleep(800000);
 		return TRUE;
 	}

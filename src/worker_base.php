@@ -20,6 +20,7 @@ class Zmws_Worker_Base {
 
 	public function __construct($backendPort='') {
 
+		$this->_cliFlags();
 		$this->context   = new ZMQContext();
 		if ($backendPort != '') {
 			$this->backendPort = $backendPort;
@@ -27,6 +28,17 @@ class Zmws_Worker_Base {
 		$this->backendSocket($this->backendPort);
 
 		$this->ready();
+	}
+
+	public function _cliFlags() {
+		if( ! @include_once('src/clihelper.php') ){
+			return;
+		}
+
+		$args = cli_args_parse();
+		$this->backendPort = cli_config_get($args, 'backend-port', $this->backendPort);
+		$this->serviceName = cli_config_get($args, 'service-name', $this->serviceName);
+		$this->setIdentity(cli_config_get($args, array('zmqid', 'id'), $this->_identity));
 	}
 
 	public function ready() {
