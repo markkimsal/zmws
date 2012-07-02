@@ -5,6 +5,8 @@ $serverList = array(
 		'file'=>'server.php',
 		'name'=>'server',
 		'flags'=> array(
+			'client-port'=>'5555',
+			'worker-port'=>'5556',
 		)
 	)
 );
