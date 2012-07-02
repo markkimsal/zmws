@@ -36,7 +36,7 @@ include "clihelper.php";
 define("HEARTBEAT_MAXTRIES", 3); //  3-5 is reasonable
 define("HEARTBEAT_INTERVAL", 5); //  secs
 
-$args = get_cli_args();
+$args = cli_args_parse();
 
 $client_port   = cli_config_get($args, array('cport', 'client-port'), '5555');
 $worker_port   = cli_config_get($args, array('wport', 'worker-port'), '5556');
