@@ -24,7 +24,9 @@ function cli_args_parse() {
 			if (strpos($config, '-') === 0)
 				$config = substr($config, 1);
 
-			$configList[] = array('c'=>str_replace('-', '', $config));
+			//the v key will get overwritten if there is a value
+			// after it.  Look at the next else block.
+			$configList[] = array('c'=>str_replace('-', '', $config), 'v'=>TRUE);
 		} else {
 			$last = count($configList) -1;
 			$c = $configList[ $last ];
