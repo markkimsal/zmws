@@ -38,3 +38,71 @@ If you want to start or stop just servers or just workers you can pass the appro
   php ./bin/start.php --servers --workers
   php ./bin/stop.php  --servers --workers
 ```
+
+Writing a Worker
+====
+There are 3 main parts to a worker:
+  * $serviceName which tells the server what jobs this worker can handle
+  * The work() method which accepts a $jobId and $param and performs the actual work.
+  * The idle() method which is called during long periods of inactivity.
+
+Each worker can (basically, 'must') subclass Worker_Base.  A sample worker is shown below:
+
+```php
+<?php
+
+include (dirname(dirname(__FILE__))."/src/worker_base.php");
+include (dirname(dirname(__FILE__))."/src/zmsg.php");
+
+class W_Sleep extends Worker_Base { 
+
+    public  $port   = '5556';
+    public  $serviceName = 'SLEEP';
+    public  $heartbeat_at = 0;
+
+    public function work($jobid, $param='') { 
+        usleep (1800000);
+        return TRUE;
+    } 
+}
+```
+
+Retunring TRUE from the work function is important.  Without that the Worker_Base will think the work function failed and return 
+a failure to the main server.
+
+### Worker Startup
+Since each worker is an independent process, each must startup it's own instance.  As much start-up code that is practical is handled by 
+the Worker_Base parent class, but there are a few loose ends that you need to paste into your worker file after the class is written.
+
+```php
+<?
+$worker = new W_Sleep();
+// Send out heartbeats at regular intervals
+while( $worker->loop() ) { 
+}
+
+```
+
+This will cause the worker to loop and read the ZMQ socket indifinitely, waiting for a job.  When it recieves a job request, work() is called.
+
+If you want to accept command line parameters, you need to parse them and set them yourself on your worker class.  The Worker_Base already looks for the special 
+ZemroMQ client ID that the network needs to resend messages after a crash.  Other flags can be read like this
+
+```php
+<?
+$worker = new W_Sleep();
+$args   = get_cli_args();
+// here we search all command line flags for 
+// --db=X
+//  -db X
+// --dbname=X
+// --dbname X
+// or any combination of flag and value syntax.
+//  If no flag is found, an empty string is the default value.
+$dbname = cli_config_get($args, array('db','dbname'), '');
+$worker->setDb($dbname);
+
+//  Send out heartbeats at regular intervals
+while(  $worker->loop() ) { 
+}
+
