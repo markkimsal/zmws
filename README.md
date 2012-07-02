@@ -11,6 +11,16 @@ The client cannot know if the job completed successfully other than checking for
 
 When a worker has a job, the server de-lists them from the known workers.  When a worker is finished, it replies with a COMPLETE or FAIL status and also includes the type of service it can provide.  The server re-adds the worker to the list of available workers for that service.  When a worker is working, the server knows nothing about them, this is effectively like having the worker be dead.
 
+How is this better than exec() ?
+====
+Yes, exec('./sometask > /dev/null 2>&1 &'); can get you a background task.  All in all, there isn't much difference between backgrounding a task with exec and sending 
+messages to a message queue or work server - if you're only ever on one physical machine.  The benefit from using a work server or other messaging solution is that you are prepared for growth.  If your project becomes successfull, how will you federate that exec('./sometask') to other machines?  Using something like ZMWS allows you to easily move workers onto different nodes, have 4 or 5 workers all performing the same task, or throttle excessive or abusive requests to a managable level.  Using a full messaging solution like ZMWS or Apache ActiveMQ will also force your code to be written with the idea of a messaging framework in it, making it adaptable in the future.
+
+Majordomo Pattern
+====
+This implementation is very similar to the majordomo protocol detailed here: http://rfc.zeromq.org/spec:7
+One difference is that job requests are *asynchronous* by default.  Synchronous jobs can be requested by prefixing the service name with "SYNC:".
+
 
 Configuration
 ====
