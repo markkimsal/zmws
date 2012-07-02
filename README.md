@@ -11,3 +11,30 @@ The client cannot know if the job completed successfully other than checking for
 
 When a worker has a job, the server de-lists them from the known workers.  When a worker is finished, it replies with a COMPLETE or FAIL status and also includes the type of service it can provide.  The server re-adds the worker to the list of available workers for that service.  When a worker is working, the server knows nothing about them, this is effectively like having the worker be dead.
 
+
+Configuration
+====
+Defining servers and workers happens in the etc/config.php file.  Use the config.sample.php as a guide to create your own config file.  At a minimum you need one server or one worker per installation.  If you are just using ZMWS as a way to process long tasks in the background, you will probably want servers and workers running on the same installation.
+
+Running
+====
+You can start and stop all servers and workers with
+```bash
+  php ./bin/start.php
+  php ./bin/stop.php
+```
+
+If you want to start or stop just servers or just workers you can pass the appropriate flag:
+
+
+```bash
+  php ./bin/start.php --servers
+  php ./bin/stop.php  --servers
+
+  php ./bin/start.php --workers
+  php ./bin/stop.php  --workers
+
+  #this is the same as passing no parameters
+  php ./bin/start.php --servers --workers
+  php ./bin/stop.php  --servers --workers
+```
