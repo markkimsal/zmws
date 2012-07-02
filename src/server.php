@@ -285,6 +285,11 @@ print $zmsg."\n";
 
 		//$blank = $zmsg->unwrap();
 		$job = $zmsg->body();
+
+		if ( substr($job, 0, 5) ==  'JOB: ') {
+			$job = substr($job, 5);
+		}
+
 		if ($job == 'SERVER-JOBS') {
 			$this->handleServerJobs($zmsg);
 			return;
@@ -302,9 +307,6 @@ print $zmsg."\n";
 			return;
 		}
 
-		if ( substr($job, 0, 5) ==  'JOB: ') {
-			$job = substr($job, 5);
-		}
 		printf ("D: request for job %s%s", $job, PHP_EOL);
 
 		//address unwraps and encodes binary uuids
@@ -313,7 +315,7 @@ print $zmsg."\n";
 
 //		printf ("D: client id %s%s", $client_id, PHP_EOL);
 		if (!$this->haveSeenJob($job)) {
-			printf ("E: no service for job %s%s", $job, PHP_EOL);
+			printf ("E: no service for job \"%s\"%s", $job, PHP_EOL);
 			$zmsgReply = new Zmsg($this->frontend);
 			$zmsgReply->body_set("FAIL: ".$job);
 			$zmsgReply->wrap( null );
