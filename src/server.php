@@ -279,9 +279,9 @@ print $zmsg."\n";
 	 */
 	public function handleFront($zmsg) {
 
-		printf ("D: FE IN %s", PHP_EOL);
-		print $zmsg->__toString();
-		$list = $this->getWorkerList();
+//		printf ("D: FE IN %s", PHP_EOL);
+//		print $zmsg->__toString();
+
 
 		//$blank = $zmsg->unwrap();
 		$job = $zmsg->body();
@@ -298,7 +298,7 @@ print $zmsg."\n";
 			return;
 		}
 		if ($job == 'SERVER-WORKERS') {
-			$this->handleServerWorkers($zmsg, $list);
+			$this->handleServerWorkers($zmsg);
 			return;
 		}
 
@@ -400,7 +400,7 @@ print $zmsg."\n";
 		$zmsg->set_socket($this->frontend)->send();
 	}
 
-	public function handleServerWorkers($zmsg, $list) {
+	public function handleServerWorkers($zmsg) {
 		$workers = array();
 		$l = $this->getWorkerList();
 		foreach ($l as $_sublist) {
