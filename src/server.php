@@ -147,15 +147,20 @@ class Zmws_Server {
 		$poll = new ZMQPoll();
 		$poll->add($this->backend, ZMQ::POLL_IN);
 
-		$list = $this->getWorkerList();
+//		$list = $this->getWorkerList();
 		//  Poll frontend only if we have available workers
-		if( count($list)) {
-			$poll->add($this->frontend, ZMQ::POLL_IN);
-		}
+//		if( count($list)) {
+//			printf ("D: inside poll %s", PHP_EOL);
+//			$poll->add($this->frontend, ZMQ::POLL_IN);
+//		}
 
+		//we can't debug without workers if the above
+		// "optimization" is in place.
+		$poll->add($this->frontend, ZMQ::POLL_IN);
 		$events = $poll->poll($read, $write, HEARTBEAT_INTERVAL * 1000 );
 
 		if($events > 0) {
+
 			foreach($read as $socket) {
 				$zmsg = new Zmsg($socket);
 				$zmsg->recv();
@@ -170,10 +175,10 @@ class Zmws_Server {
 					$this->handleFront($zmsg);
 				}
 			}
-
 		}
 
 		if(microtime(true) > $this->hb_at) {
+			$list = $this->getWorkerList();
 			//@printf (" %0.4f %0.4f %s", microtime(true), $this->hb_at, PHP_EOL);
 			foreach($list as $serv => $jlist) {
 				foreach($jlist as $id => $jdef) {
@@ -274,9 +279,9 @@ print $zmsg."\n";
 	 */
 	public function handleFront($zmsg) {
 
+		printf ("D: FE IN %s", PHP_EOL);
+		print $zmsg->__toString();
 		$list = $this->getWorkerList();
-//		printf ("D: FE IN %s", PHP_EOL);
-//		print $zmsg->__toString();
 
 		//$blank = $zmsg->unwrap();
 		$job = $zmsg->body();
