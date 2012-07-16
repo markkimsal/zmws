@@ -50,17 +50,20 @@ class Zmws_Worker_Base {
 
 	public function backendSocket($port) {
 		$this->backend   = new ZMQSocket($this->context, ZMQ::SOCKET_DEALER);
-		$this->backend->connect("tcp://*:".$port);    //  For workers
 
 		$this->backend->setSockOpt(ZMQ::SOCKOPT_IDENTITY, $this->getIdentity());
 
 		//  Configure socket to not wait at close time
 		$this->backend->setSockOpt(ZMQ::SOCKOPT_LINGER, 0);
 
+
 		//configure heartbeat
         $this->hbAt        = microtime(true) + HEARTBEAT_INTERVAL;
         $this->hbRetries   = HEARTBEAT_RETRIES;
         $this->hbInterval  = HEARTBEAT_INTERVAL;
+
+		//connect
+		$this->backend->connect("tcp://*:".$port);
 	}
 
 	public function heartbeat() {
