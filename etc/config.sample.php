@@ -20,7 +20,7 @@ $serverList = array(
 
 $workerList = array(
 	array(
-		'file'=>'sleep.php',
+		'file'=>'sample_workers/sleep.php',
 		'name'=>'sleep_a',
 		'flags'=> array(
 			//without this, the inherited DEMO would be used
