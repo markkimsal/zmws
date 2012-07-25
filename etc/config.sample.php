@@ -2,7 +2,7 @@
 
 $serverList = array(
 	array(
-		'file'=>'server.php',
+		'file'=>'src/server.php',
 		'name'=>'server',
 		'flags'=> array(
 			'client-port'=>'5555',
@@ -20,7 +20,7 @@ $serverList = array(
 
 $workerList = array(
 	array(
-		'file'=>'sleep.php',
+		'file'=>'sample_workers/sleep.php',
 		'name'=>'sleep_a',
 		'flags'=> array(
 			//without this, the inherited DEMO would be used
