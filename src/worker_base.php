@@ -100,7 +100,28 @@ class Zmws_Worker_Base {
 				$zmsg = new Zmsg($socket);
 				$zmsg->recv();
 
-				$jobid = $zmsg->body();
+				$jobid     = $zmsg->body();
+				$client_id = $zmsg->address();
+				//this is just to remove the address and null to
+				// test for sizes (params)
+				$bin_client_id = $zmsg->unwrap();
+
+				$p = (object)array();
+				//params
+				//id, null, params, body
+				if ($zmsg->parts() == 2) {
+					$param = $zmsg->unwrap();
+					if (strpos($param, 'PARAM') !== FALSE) {
+						list($k, $v) = explode(': ', $param);
+						if (strpos($k, 'JSON') !== FALSE) {
+							$p = json_decode($v);
+						}
+						if (strpos($k, 'PHP') !== FALSE) {
+							$p = unserialize($v);
+						}
+					}
+					unset($v);
+				}
 
 				if ($jobid == 'HEARTBEAT') {
 					//any comms with server resets HB retries
@@ -110,7 +131,7 @@ class Zmws_Worker_Base {
 				}
 				$jobid = substr($jobid, 5);
 
-				if ($this->work($jobid)) {
+				if ($this->work($jobid, $p)) {
 					$zanswer = new Zmsg($socket);
 					$zanswer->body_set("COMPLETE: ".$jobid);
 					$zanswer->wrap($this->serviceName);

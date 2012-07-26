@@ -124,7 +124,8 @@ class Zmws_Gateway {
 				$this->hangup($_idx);
 				return;
 			}
-			$reply = $this->zm->send($req);
+			$params = $this->_parseParams($_idx);
+			$reply = $this->zm->send($req, $params);
 
 /*
 			socket_write ($this->clientList[$_idx], "Here are the headers you sent\n");
@@ -215,6 +216,24 @@ class Zmws_Gateway {
 		}
 	}
 
+	/**
+	 * Return an array of key values pairs from the request's body.
+	 *
+	 * Support both application/x-www-form-urlencoded and multipart/form-data
+	 * 
+	 * TODO: support multipart/form-data
+	 */
+	public function _parseParams($idx) {
+		$params  = (object) array();
+		if (!strpos($this->reqList[$idx]['body'], '&')) return $params;
+		$pairs   = explode('&', $this->reqList[$idx]['body']);
+		foreach  ($pairs as $_p) {
+			list($k, $v) = explode('=', $_p);
+			$params->{$k} = $v;
+		}
+		return $params;
+	}
+
 	public function hangup($idx) {
 //		echo "Closing socket ...\n";
 
@@ -254,6 +273,10 @@ class Zmws_Gateway_Client {
 		}
 		$request = new Zmsg($this->frontend);
 		$request->body_set('JOB: '.$job);
+		if ($param) {
+			$request->push('PARAM-JSON: '. json_encode($param));
+		}
+
 		$request->send();
 
 		$reply = $request->recv();

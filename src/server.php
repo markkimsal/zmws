@@ -216,6 +216,7 @@ class Zmws_Server {
 		}
 		$zmsg = new Zmsg($this->backend);
 		$zmsg->body_set('JOB: '.$jid);
+		$zmsg->wrap( $_j['param'] );
 		$zmsg->wrap( null );
 		$zmsg->wrap( $_j['clientid'] );
 		$zmsg->wrap( $wid );
@@ -312,6 +313,7 @@ print $zmsg."\n";
 		//address unwraps and encodes binary uuids
 		$client_id = $zmsg->address();
 		$bin_client_id = $zmsg->unwrap();
+		$param         = $zmsg->unwrap();
 
 //		printf ("D: client id %s%s", $client_id, PHP_EOL);
 		if (!$this->haveSeenJob($job)) {
@@ -324,7 +326,7 @@ print $zmsg."\n";
 			return;
 		}
 
-		$jobid = $this->handleWorkRequest($job, $client_id);
+		$jobid = $this->handleWorkRequest($job, $client_id, $param);
 
 		$zmsgReply = new Zmsg($this->frontend);
 		$zmsgReply->body_set("JOB: ".$jobid);
@@ -367,7 +369,7 @@ print $zmsg."\n";
 	/**
 	 * Record the request for a new job
 	 */
-	public function handleWorkRequest($service, $clientId, $id=null) {
+	public function handleWorkRequest($service, $clientId, $param, $id=null) {
 		if (!$clientId) {
 			return false;
 		}
@@ -382,7 +384,7 @@ print $zmsg."\n";
 		if (!$id) {
 			$id = Zmws_Server::gen_id();
 		}
-		$this->queueJobList[$id] = array('service'=>$service, 'reqtime'=>time(), 'clientid'=>$clientId, 'jobid'=>$id);
+		$this->queueJobList[$id] = array('service'=>$service, 'reqtime'=>time(), 'param'=>$param, 'clientid'=>$clientId, 'jobid'=>$id);
 
 		return $id;
 	}
