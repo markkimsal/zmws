@@ -145,10 +145,12 @@ class Zmws_Gateway {
 			socket_write ($this->clientList[$_idx], $reply."\n");
 			socket_write ($this->clientList[$_idx], "Thanks, goodbye.\n");
 */
-			if ($reply != '') {
+			if (strpos($reply, 'FNF') !== FALSE) {
+				socket_write ($this->clientList[$_idx], "HTTP 404 NOT FOUND\n");
+			} elseif ($reply != '') {
 				socket_write ($this->clientList[$_idx], "HTTP 200 OK\n");
 			} else {
-				socket_write ($this->clientList[$_idx], "HTTP 404 NOT FOUND\n");
+				socket_write ($this->clientList[$_idx], "HTTP 501 INTERAL SERVER ERROR\n");
 			}
 			socket_write ($this->clientList[$_idx], "Content-length: ".strlen($reply)."\n");
 			socket_write ($this->clientList[$_idx], "\n");
@@ -257,6 +259,7 @@ class Zmws_Gateway {
 	public function _parseParams($idx) {
 		$params  = (object) array();
 		if (!strpos($this->reqList[$idx]['body'], '&')) return $params;
+
 		$pairs   = explode('&', $this->reqList[$idx]['body']);
 		foreach  ($pairs as $_p) {
 			list($k, $v) = explode('=', $_p);
@@ -301,6 +304,9 @@ class Zmws_Gateway_Client {
 		$job = ltrim($job, '/');
 		if ($job == 'favicon.ico') {
 			return '';
+		}
+		if (trim($job) == '') {
+			return 'FNF';
 		}
 		$request = new Zmsg($this->frontend);
 		$request->body_set('JOB: '.$job);
