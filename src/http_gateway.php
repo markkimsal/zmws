@@ -117,14 +117,23 @@ class Zmws_Gateway {
 	 * write responses to those requests that are "complete"
 	 */
 	public function handleReqs() {
+
+		foreach ($this->reqList as $_idx => $req) {
+			if ($req['hdrcomplete'] == TRUE && $req['complete'] == FALSE) {
+				if (isset($req['headers']['Expect'])) {
+					socket_write ($this->clientList[$_idx], "HTTP/1.1 100 Continue\r\n\r\n");
+				}
+			}
+		}
 		foreach ($this->reqList as $_idx => $req) {
 			if (!$req['complete']) continue;
 
-			if (!is_resource($this->clientList[$_idx])) {
+			if (!@is_resource($this->clientList[$_idx])) {
 				$this->hangup($_idx);
 				return;
 			}
-			$reply = $this->zm->send($req);
+			$params = $this->_parseParams($_idx);
+			$reply = $this->zm->send($req, $params);
 
 /*
 			socket_write ($this->clientList[$_idx], "Here are the headers you sent\n");
@@ -136,10 +145,12 @@ class Zmws_Gateway {
 			socket_write ($this->clientList[$_idx], $reply."\n");
 			socket_write ($this->clientList[$_idx], "Thanks, goodbye.\n");
 */
-			if ($reply != '') {
+			if (strpos($reply, 'FNF') !== FALSE) {
+				socket_write ($this->clientList[$_idx], "HTTP 404 NOT FOUND\n");
+			} elseif ($reply != '') {
 				socket_write ($this->clientList[$_idx], "HTTP 200 OK\n");
 			} else {
-				socket_write ($this->clientList[$_idx], "HTTP 404 NOT FOUND\n");
+				socket_write ($this->clientList[$_idx], "HTTP 501 INTERAL SERVER ERROR\n");
 			}
 			socket_write ($this->clientList[$_idx], "Content-length: ".strlen($reply)."\n");
 			socket_write ($this->clientList[$_idx], "\n");
@@ -173,52 +184,94 @@ class Zmws_Gateway {
 	}
 
 	public function buildRequest($idx, $input) {
+		//initialize new request
 		if (!isset($this->reqList[$idx])) {
 			$this->reqList[$idx] = 
 				array(
-					'reqhdr'=>'',
+					'request'=>'',
 					'headers'=>array(),
 					'raw'=>'',
-					'complete'=>FALSE
+					'body'=>'',
+					'error'=>'',
+					'complete'=>FALSE,
+					'hdrcomplete'=>FALSE
 				);
 		}
 		$req = &$this->reqList[$idx];
 
-		//single line of \r \n or \r\n
-
-		if ( trim($input) != '') {
+		if (!$req['hdrcomplete']) {
 			$req['raw'] .= $input;
+		} else {
+			$req['body'] .= $input;
 		}
 
-		//could be \n\n or \r\n\r\n
-		$end = substr($req['raw'], -4);
+		//multipart form bodies have  \n\n
+		$end = FALSE;
+		if (!$req['hdrcomplete']) {
+			$end = strpos($input, "\r\n\r\n");
+			if ($end === FALSE) {
+				$end = strpos($input, "\n\n");
+				$pn = 2;
+			} else {
+				$pn = 4;
+			}
+		}
 
-		//if we got no input, or all the last 4 chars are empty
-		// and the last one is a newline, then complete the
-		// request
-		if ( trim($input) == '' || 
-			( trim($end) == '' && substr($end, -1) == "\n") 
-		) {
-			$req['complete'] = TRUE;
-			$hdrs = explode("\n", $req['raw']);
-			foreach ($hdrs as $_hd) {
+		if ($end !== FALSE) {
+			$req['hdrcomplete'] = TRUE;
+
+			$hdrList = explode("\n", substr($req['raw'], 0, $end+$pn));
+			foreach ($hdrList as $_hd) {
 				if (trim($_hd) == '') continue;
 
 				if (strpos($_hd, ':') ) {
 					list($k, $v) = explode(":", $_hd);
 					$req['headers'][ trim($k) ] = trim($v);
 				} else {
-					$req['reqhdr'] = $_hd;
+					$req['request'] = $_hd;
 				}
 			}
+			unset($hdrList);
+			$req['body'] = substr($req['raw'], $end+$pn);
 			unset($req['raw']);
 		}
+
+		//if this is the second time through and headers are already complete, check body
+		if ($req['hdrcomplete'] == TRUE) {
+			if( isset($req['headers']['Content-Length']) ) {
+				if ($req['headers']['Content-Length'] <= strlen($req['body'])) {
+					$req['complete'] = TRUE;
+
+				}
+			} else {
+				$req['complete'] = TRUE;
+			}
+		}
+	}
+
+	/**
+	 * Return an array of key values pairs from the request's body.
+	 *
+	 * Support both application/x-www-form-urlencoded and multipart/form-data
+	 * 
+	 * TODO: support multipart/form-data
+	 */
+	public function _parseParams($idx) {
+		$params  = (object) array();
+		if (!strpos($this->reqList[$idx]['body'], '&')) return $params;
+
+		$pairs   = explode('&', $this->reqList[$idx]['body']);
+		foreach  ($pairs as $_p) {
+			list($k, $v) = explode('=', $_p);
+			$params->{$k} = $v;
+		}
+		return $params;
 	}
 
 	public function hangup($idx) {
 //		echo "Closing socket ...\n";
 
-		if (is_resource($this->clientList[$idx])) {
+		if (@is_resource($this->clientList[$idx])) {
 			socket_shutdown($this->clientList[$idx], 2);
 			socket_close($this->clientList[$idx]);
 		}
@@ -242,18 +295,25 @@ class Zmws_Gateway_Client {
 		$this->frontend->connect("tcp://*:".$this->frontend_port);    //  For clients
 	}
 
-	public function send ($req) {
-		if ($req['reqhdr'] == '') {
+	public function send ($req, $param) {
+		if ($req['request'] == '') {
 			return '';
 		}
-		$parts = explode(' ', $req['reqhdr']);
+		$parts = explode(' ', $req['request']);
 		$job = $parts[1];
 		$job = ltrim($job, '/');
 		if ($job == 'favicon.ico') {
 			return '';
 		}
+		if (trim($job) == '') {
+			return 'FNF';
+		}
 		$request = new Zmsg($this->frontend);
 		$request->body_set('JOB: '.$job);
+		if ($param) {
+			$request->push('PARAM-JSON: '. json_encode($param));
+		}
+
 		$request->send();
 
 		$reply = $request->recv();

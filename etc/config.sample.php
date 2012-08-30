@@ -2,7 +2,7 @@
 
 $serverList = array(
 	array(
-		'file'=>'server.php',
+		'file'=>'src/server.php',
 		'name'=>'server',
 		'flags'=> array(
 			'client-port'=>'5555',

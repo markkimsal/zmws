@@ -41,10 +41,17 @@ $args = cli_args_parse();
 $client_port   = cli_config_get($args, array('cport', 'client-port'), '5555');
 $worker_port   = cli_config_get($args, array('wport', 'worker-port'), '5556');
 $news_port     = cli_config_get($args, array('nport', 'news-port'), '5557');
+$log_level     = cli_config_get($args, array('log',   'log-level'), 'W');
 
 
 
 $zserver = new Zmws_Server($client_port, $worker_port, $news_port);
+
+$zserver->log_level = 'I';
+$zserver->log("Server startup @".date('r'), 'I');
+
+$zserver->log_level = $log_level;
+
 
 while($zserver->poll() ) {
 	//poll() returns false when it wants to quit
@@ -68,6 +75,7 @@ class Zmws_Server {
 	public $histJobList    = array();
 
 	public $hb_at          = 0;
+	public $log_level      = 'W';
 
 	public function __construct($client_port, $worker_port, $news_port) {
 		//  Prepare our context and sockets
@@ -182,7 +190,8 @@ class Zmws_Server {
 			//@printf (" %0.4f %0.4f %s", microtime(true), $this->hb_at, PHP_EOL);
 			foreach($list as $serv => $jlist) {
 				foreach($jlist as $id => $jdef) {
-					printf ("D: sending HB to  %s (%s)%s", $id, $jdef['service'], PHP_EOL);
+
+					$this->log(sprintf ("sending HB to  %s (%s)", $id, $jdef['service']) , 'D' );
 					$zmsg = new Zmsg($this->backend);
 					$zmsg->body_set("HEARTBEAT");
 					$zmsg->wrap($id, NULL);
@@ -216,6 +225,7 @@ class Zmws_Server {
 		}
 		$zmsg = new Zmsg($this->backend);
 		$zmsg->body_set('JOB: '.$jid);
+		$zmsg->wrap( $_j['param'] );
 		$zmsg->wrap( null );
 		$zmsg->wrap( $_j['clientid'] );
 		$zmsg->wrap( $wid );
@@ -237,15 +247,14 @@ class Zmws_Server {
 	 */
 	public function handleBack($zmsg) {
 
-printf ("D: Back IN %s", PHP_EOL);
-print $zmsg."\n";
+		$this->log( sprintf("Backend IN %s", $zmsg), 'D' );
 		$identity      = $zmsg->address();
 		$binary        = $zmsg->unwrap();
 
 		if($zmsg->parts() == 1) {
 
 			if($zmsg->body() == 'HEARTBEAT') {
-				printf ("D: HB from %s %s", $identity,  PHP_EOL);
+				$this->log( sprintf("HB from %s %s", $identity,  PHP_EOL), 'D' );
 				$this->refreshWorker($identity);
 			}
 
@@ -307,11 +316,12 @@ print $zmsg."\n";
 			return;
 		}
 
-		printf ("D: request for job %s%s", $job, PHP_EOL);
+		$this->log( printf ("D: request for job %s", $job), 'D' );
 
 		//address unwraps and encodes binary uuids
 		$client_id = $zmsg->address();
 		$bin_client_id = $zmsg->unwrap();
+		$param         = $zmsg->unwrap();
 
 //		printf ("D: client id %s%s", $client_id, PHP_EOL);
 		if (!$this->haveSeenJob($job)) {
@@ -324,7 +334,7 @@ print $zmsg."\n";
 			return;
 		}
 
-		$jobid = $this->handleWorkRequest($job, $client_id);
+		$jobid = $this->handleWorkRequest($job, $client_id, $param);
 
 		$zmsgReply = new Zmsg($this->frontend);
 		$zmsgReply->body_set("JOB: ".$jobid);
@@ -367,7 +377,7 @@ print $zmsg."\n";
 	/**
 	 * Record the request for a new job
 	 */
-	public function handleWorkRequest($service, $clientId, $id=null) {
+	public function handleWorkRequest($service, $clientId, $param, $id=null) {
 		if (!$clientId) {
 			return false;
 		}
@@ -382,7 +392,7 @@ print $zmsg."\n";
 		if (!$id) {
 			$id = Zmws_Server::gen_id();
 		}
-		$this->queueJobList[$id] = array('service'=>$service, 'reqtime'=>time(), 'clientid'=>$clientId, 'jobid'=>$id);
+		$this->queueJobList[$id] = array('service'=>$service, 'reqtime'=>time(), 'param'=>$param, 'clientid'=>$clientId, 'jobid'=>$id);
 
 		return $id;
 	}
@@ -474,6 +484,34 @@ print $zmsg."\n";
 	}
 
 	public function cleanup() {
+	}
+
+
+	/**
+	 * Always log E
+	 * E is error
+	 * W is error
+	 * I is info
+	 * D is debug
+	 */
+	public function log($msg, $lvl='W') {
+		if ($this->log_level == 'E') {
+			if ($lvl == 'W') return;
+			if ($lvl == 'I') return;
+			if ($lvl == 'D') return;
+		}
+		if ($this->log_level == 'W') {
+			if ($lvl == 'I') return;
+			if ($lvl == 'D') return;
+		}
+		if ($this->log_level == 'I') {
+			if ($lvl == 'D') return;
+		}
+		if ($this->log_level == 'D') {
+			//always
+		}
+
+		printf("[%s] [%s] - %s\n", date('r'), $lvl, $msg);
 	}
 }
 

@@ -18,6 +18,8 @@ class Zmws_Worker_Base {
 	public $backend     = NULL;
 	public $_identity   = '';
 
+	public $log_level      = 'W';
+
 	public function __construct($backendPort='') {
 
 		$this->_cliFlags();
@@ -39,6 +41,7 @@ class Zmws_Worker_Base {
 		$this->backendPort = cli_config_get($args, 'backend-port', $this->backendPort);
 		$this->serviceName = cli_config_get($args, 'service-name', $this->serviceName);
 		$this->setIdentity(cli_config_get($args, array('zmqid', 'id'), $this->_identity));
+		$this->log_level   = cli_config_get($args, array('log',   'log-level'), 'W');
 	}
 
 	public function ready() {
@@ -64,6 +67,11 @@ class Zmws_Worker_Base {
 
 		//connect
 		$this->backend->connect("tcp://*:".$port);
+
+		$oldlog = $this->log_level;
+		$this->log_level = 'I';
+		$this->log("Worker startup @".date('r'), "I");
+		$this->log_level = $oldlog;
 	}
 
 	public function heartbeat() {
@@ -94,13 +102,34 @@ class Zmws_Worker_Base {
 
 		$events = $poll->poll($read, $write, $this->hbInterval * 1000 );
 
-	printf ("D: poll done.%s", PHP_EOL);
+		$this->log("poll done.", "D");
 		if($events > 0) {
 			foreach($read as $socket) {
 				$zmsg = new Zmsg($socket);
 				$zmsg->recv();
 
-				$jobid = $zmsg->body();
+				$jobid     = $zmsg->body();
+				$client_id = $zmsg->address();
+				//this is just to remove the address and null to
+				// test for sizes (params)
+				$bin_client_id = $zmsg->unwrap();
+
+				$p = (object)array();
+				//params
+				//id, null, params, body
+				if ($zmsg->parts() == 2) {
+					$param = $zmsg->unwrap();
+					if (strpos($param, 'PARAM') !== FALSE) {
+						list($k, $v) = explode(': ', $param);
+						if (strpos($k, 'JSON') !== FALSE) {
+							$p = json_decode($v);
+						}
+						if (strpos($k, 'PHP') !== FALSE) {
+							$p = unserialize($v);
+						}
+					}
+					unset($v);
+				}
 
 				if ($jobid == 'HEARTBEAT') {
 					//any comms with server resets HB retries
@@ -110,7 +139,8 @@ class Zmws_Worker_Base {
 				}
 				$jobid = substr($jobid, 5);
 
-				if ($this->work($jobid)) {
+				try {
+				if ($this->work($jobid, $p)) {
 					$zanswer = new Zmsg($socket);
 					$zanswer->body_set("COMPLETE: ".$jobid);
 					$zanswer->wrap($this->serviceName);
@@ -122,10 +152,19 @@ class Zmws_Worker_Base {
 					$zanswer->wrap($this->serviceName);
 					$zanswer->send();
 				}
+				} catch (Exception $e) {
+					var_dump($e->getMessage());
+					$zanswer = new Zmsg($socket);
+					$zanswer->body_set("FAIL: ".$jobid);
+					$zanswer->wrap($this->serviceName);
+					$zanswer->send();
+
+				}
 			}
 			//communication with server, reset HB retries
         	$this->hbRetries   = HEARTBEAT_RETRIES;
-			printf ("hb up (%d).%s", $this->hbRetries, PHP_EOL);
+
+			$this->log(sprintf ("hb up (%d).", $this->hbRetries), "D");
 		} else {
 			$this->hbRetries--;
 			//no communication for HEARTBEAT_INTERVAL seconds
@@ -134,7 +173,8 @@ class Zmws_Worker_Base {
 				$this->backendSocket($this->backendPort);
 				$this->ready();
 			} else {
-				printf ("hb down (%d).%s", $this->hbRetries, PHP_EOL);
+//				printf ("hb down (%d).%s", $this->hbRetries, PHP_EOL);
+				$this->log(sprintf ("hb down (%d).", $this->hbRetries), "D");
 			}
 		}
 
@@ -151,5 +191,33 @@ class Zmws_Worker_Base {
 	 */
 	public function work($jobid, $param='') {
 		return FALSE;
+	}
+
+
+	/**
+	 * Always log E
+	 * E is error
+	 * W is error
+	 * I is info
+	 * D is debug
+	 */
+	public function log($msg, $lvl='W') {
+		if ($this->log_level == 'E') {
+			if ($lvl == 'W') return;
+			if ($lvl == 'I') return;
+			if ($lvl == 'D') return;
+		}
+		if ($this->log_level == 'W') {
+			if ($lvl == 'I') return;
+			if ($lvl == 'D') return;
+		}
+		if ($this->log_level == 'I') {
+			if ($lvl == 'D') return;
+		}
+		if ($this->log_level == 'D') {
+			//always
+		}
+
+		printf("[%s] [%s] - %s\n", date('r'), $lvl, $msg);
 	}
 }
