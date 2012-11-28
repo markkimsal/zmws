@@ -66,7 +66,7 @@ function pidIsAlive($pid) {
 	$ps = array();
 	exec('kill -0 '.$pid.' 2>&1; echo $?', $ps);
 	//kill with no signal gives error exist status of 1 if no pid is running
-	if ($ps[0] == '1') {
+	if ( (isset($ps[2]) && $ps[2] == '1') || $ps[0] === '1') {
 		return FALSE;
 	}
 	return TRUE;
