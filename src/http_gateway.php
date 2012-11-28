@@ -39,13 +39,15 @@ define("HEARTBEAT_INTERVAL", 5); //  secs
 $args = cli_args_parse();
 
 $client_port   = cli_config_get($args, array('cport', 'client-port'), '5555');
+echo "client port ". $client_port."\n";
 $http_port     = cli_config_get($args, array('wport', 'http-port'),   '5580');
 $listen_addr   = cli_config_get($args, array('address', 'iface'),   '0.0.0.0');
-
+$log_level     = cli_config_get($args, array('log',   'log-level'), 'W');
 
 
 set_time_limit (0);
 $gserver = new Zmws_Gateway($client_port, $http_port, $listen_addr);
+$gserver->log_level = $log_level;
 
 
 echo "Server startup @".date('r')." polling sockets....\n";
@@ -87,6 +89,7 @@ class Zmws_Gateway {
 
 	public function connectZm() {
 		$this->zm = new Zmws_Gateway_Client();
+		$this->zm->frontend_port = $this->zmport;
 	}
 
 
@@ -100,9 +103,10 @@ class Zmws_Gateway {
 		if (in_array($this->sock, $read)) {
 			// read status on the main socket means we have new connections to accept
 			$this->clientList[] = socket_accept($this->sock);
-//			$ip = $port = '';
-//			socket_getpeername( end($this->clientList), $ip, $port);
+			$ip = $port = '';
+			socket_getpeername( end($this->clientList), $ip, $port);
 //			echo "Got new client $ip $port\n";
+			$this->log('got new client ('.$ip.':'.$port.')', 'D');
 		}
 
 		$this->readClients($read, $except);
@@ -133,6 +137,7 @@ class Zmws_Gateway {
 				return;
 			}
 			$params = $this->_parseParams($_idx);
+			$this->log('Sending request to ZMQ', 'D');
 			$reply = $this->zm->send($req, $params);
 
 /*
@@ -282,14 +287,46 @@ class Zmws_Gateway {
 	public function cleanup() {
 		socket_close($this->sock);
 	}
+
+
+	/**
+	 * Always log E
+	 * E is error
+	 * W is error
+	 * I is info
+	 * D is debug
+	 */
+	public function log($msg, $lvl='W') {
+		if ($this->log_level == 'E') {
+			if ($lvl == 'W') return;
+			if ($lvl == 'I') return;
+			if ($lvl == 'D') return;
+		}
+		if ($this->log_level == 'W') {
+			if ($lvl == 'I') return;
+			if ($lvl == 'D') return;
+		}
+		if ($this->log_level == 'I') {
+			if ($lvl == 'D') return;
+		}
+		if ($this->log_level == 'D') {
+			//always
+		}
+
+		printf("[%s] [%s] - %s\n", date('r'), $lvl, $msg);
+	}
+
 }
 
 
 class Zmws_Gateway_Client {
 
-	public $frontend_port = '5555';
+	public $frontend_port = '5554';
 
-	public function __construct() {
+	public function __construct($frontend_port='') {
+		if ($frontend_port) {
+			$this->frontend_port = $frontend_port;
+		}
 		$this->context   = new ZMQContext();
 		$this->frontend  = new ZMQSocket($this->context, ZMQ::SOCKET_REQ);
 		$this->frontend->connect("tcp://*:".$this->frontend_port);    //  For clients

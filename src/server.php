@@ -267,7 +267,7 @@ class Zmws_Server {
 			$service       = $zmsg->unwrap();
 
 			if( substr($zmsg->address(), 0, 5) == "READY") {
-				printf ("I: ready %s job:%s%s", $identity, $service, PHP_EOL);
+				$this->log(sprintf ("ready %s job:%s", $identity, $service), 'I');
 				$this->deleteWorker($identity, $service);
 				$this->appendWorker($identity, $service);
 			}
@@ -316,7 +316,7 @@ class Zmws_Server {
 			return;
 		}
 
-		$this->log( printf ("D: request for job %s", $job), 'D' );
+		$this->log( sprintf ("request for job %s", $job), 'D' );
 
 		//address unwraps and encodes binary uuids
 		$client_id = $zmsg->address();
@@ -357,9 +357,9 @@ class Zmws_Server {
 			$_job = $this->activeJobList[$jobid];
 
 			if ($success)
-				printf ("I: JOB COMPLETE: %s - took %0.4f sec %s", $jobid, (microtime(true) - $_job['startedat']), PHP_EOL);
+				$this->log( sprintf ("JOB COMPLETE: %s %s - took %0.4f sec", $_job['service'], $jobid, (microtime(true) - $_job['startedat'])), 'I' );
 			else {
-				printf ("I: JOB FAILED: %s - took %0.4f sec %s", $jobid, (microtime(true) - $_job['startedat']), PHP_EOL);
+				$this->log( sprintf ("JOB FAILED: %s %s - took %0.4f sec", $_job['service'], $jobid, (microtime(true) - $_job['startedat'])), 'I' );
 			}
 
 			$_job['completedat'] = microtime(true);
@@ -431,9 +431,9 @@ class Zmws_Server {
 		$this->seeJob($svc);
 
 		if(isset($this->workerList[$svc][$id])) {
-			printf ("E: duplicate worker identity %s", $id);
+			$this->log( sprintf ("duplicate worker identity %s", $id), 'E');
 		} else {
-			printf ("I: appending worker %s for %s%s", $id, $svc, PHP_EOL);
+			$this->log( sprintf ("appending worker %s for %s", $id, $svc) , 'I');
 			$this->workerList[$svc][$id] = array(
 				'hb'=>microtime(true) + HEARTBEAT_INTERVAL * HEARTBEAT_MAXTRIES,
 				'service'=>$svc, 
