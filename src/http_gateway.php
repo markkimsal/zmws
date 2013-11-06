@@ -88,8 +88,9 @@ class Zmws_Gateway {
 	}
 
 	public function connectZm() {
-		$this->zm = new Zmws_Gateway_Client();
-		$this->zm->frontend_port = $this->zmport;
+		$this->zm = new Zmws_Gateway_Client($this->zmport);
+//		$this->zm->frontend_port = $this->zmport;
+		$this->zm->log_level = $this->log_level;
 	}
 
 
@@ -339,6 +340,7 @@ class Zmws_Gateway_Client {
 		$parts = explode(' ', $req['request']);
 		$job = $parts[1];
 		$job = ltrim($job, '/');
+		$this->log('Sending job '.$job.'  to ZMQ', 'D');
 		if ($job == 'favicon.ico') {
 			return '';
 		}
@@ -347,13 +349,42 @@ class Zmws_Gateway_Client {
 		}
 		$request = new Zmsg($this->frontend);
 		$request->body_set('JOB: '.$job);
-		if ($param) {
+		if (!empty($param)) {
+			$this->log('Sending param '.json_encode($param).'  to ZMQ', 'D');
 			$request->push('PARAM-JSON: '. json_encode($param));
 		}
 
 		$request->send();
+		$this->log('Waiting to recv from ZMQ', 'D');
 
 		$reply = $request->recv();
 		return $reply->body();
+	}
+
+	/**
+	 * Always log E
+	 * E is error
+	 * W is error
+	 * I is info
+	 * D is debug
+	 */
+	public function log($msg, $lvl='W') {
+		if ($this->log_level == 'E') {
+			if ($lvl == 'W') return;
+			if ($lvl == 'I') return;
+			if ($lvl == 'D') return;
+		}
+		if ($this->log_level == 'W') {
+			if ($lvl == 'I') return;
+			if ($lvl == 'D') return;
+		}
+		if ($this->log_level == 'I') {
+			if ($lvl == 'D') return;
+		}
+		if ($this->log_level == 'D') {
+			//always
+		}
+
+		printf("[%s] [%s] - %s\n", date('r'), $lvl, $msg);
 	}
 }
