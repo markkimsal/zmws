@@ -16,6 +16,12 @@ How is this better than exec() ?
 Yes, exec('./sometask > /dev/null 2>&1 &'); can get you a background task.  All in all, there isn't much difference between backgrounding a task with exec and sending 
 messages to a message queue or work server - if you're only ever on one physical machine.  The benefit from using a work server or other messaging solution is that you are prepared for growth.  If your project becomes successfull, how will you federate that exec('./sometask') to other machines?  Using something like ZMWS allows you to easily move workers onto different nodes, have 4 or 5 workers all performing the same task, or throttle excessive or abusive requests to a managable level.  Using a full messaging solution like ZMWS or Apache ActiveMQ will also force your code to be written with the idea of a messaging framework in it, making it adaptable in the future.
 
+How is this different from gearman?
+====
+Gearman is a very similar project.  This project uses ZeroMQ to implement the network protocl for performing jobs, gearman uses their own.  Both projects require a PHP extension.  In gearman's case it is the php-gearman extension, in the case of ZMWS it requires the php-zmq extension.  Building on ZeroMQ allows the project to take advantage of future ZeroMQ improvements like security as well as existing ZeroMQ features like multicast.
+
+Gearman's job server - gearmand - is written in C.  This alleviates any potential memory issues associated with long running PHP processes, but may limit your ability to customize the job server.  ZMWS's job server is written in PHP.
+
 Majordomo Pattern
 ====
 This implementation is very similar to the majordomo protocol detailed here: http://rfc.zeromq.org/spec:7
