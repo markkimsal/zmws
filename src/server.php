@@ -249,7 +249,6 @@ class Zmws_Server {
 
 		$this->log( sprintf("zmsg parts %d", $zmsg->parts()), 'D' );
 		if($zmsg->parts() == 1) {
-
 			if($zmsg->body() == 'HEARTBEAT') {
 				$this->log( sprintf("HB from %s", $identity), 'D' );
 				$this->refreshWorker($identity);
@@ -257,26 +256,32 @@ class Zmws_Server {
 			return;
 		}
 
-
 		//  Return reply to client if it's not a control message
-		if($zmsg->parts() == 2) {
-
-			$service       = $zmsg->unwrap();
-
+		if($zmsg->parts() > 1) {
+			$retval = NULL;
+			if ($zmsg->parts() == 2) {
+				$service       = $zmsg->unwrap();
+			}
+			//do we have a return value?
+			if ($zmsg->parts() == 3) {
+				$retval        = $zmsg->unwrap();
+				$service       = $zmsg->unwrap();
+			}
 			if( substr($zmsg->address(), 0, 5) == "READY") {
 				$this->log(sprintf ("ready %s job:%s", $identity, $service), 'I');
 				$this->deleteWorker($identity, $service);
 				$this->appendWorker($identity, $service);
 			}
-
 			if( strtoupper(substr($zmsg->body(), 0, 8) == 'COMPLETE') ) {
 				$jobid = substr($zmsg->body(), 10);
-				$this->handleFinishJob($zmsg, $jobid, $identity, $service);
+				$this->handleFinishJob($zmsg, $jobid, $identity, $service, TRUE, $retval);
 			}
 			if( strtoupper(substr($zmsg->body(), 0, 4) == 'FAIL') ) {
 				$jobid = substr($zmsg->body(), 6);
-				$this->handleFinishJob($zmsg, $jobid, $identity, $service, FALSE);
+				$this->handleFinishJob($zmsg, $jobid, $identity, $service, FALSE, $retval);
 			}
+		} else {
+			$this->log( sprintf ("got a response that might have a return value: (%d) parts", count($zmsg->parts())), 'I' );
 		}
 	}
 
@@ -342,7 +347,7 @@ class Zmws_Server {
 	 * Add job to stat history
 	 * alert notify socket of job completion
 	 */
-	public function handleFinishJob($zmsg, $jobid, $identity, $service, $success=true) {
+	public function handleFinishJob($zmsg, $jobid, $identity, $service, $success=true, $retval=NULL) {
 
 			$_job = $this->activeJobList[$jobid];
 

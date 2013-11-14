@@ -140,26 +140,44 @@ class Zmws_Worker_Base {
 				$jobid = substr($jobid, 5);
 
 				try {
-				if ($this->work($jobid, $p)) {
-					$zanswer = new Zmsg($socket);
+				//workers can return TRUE/FALSE, or an object
+				// with a status and a return value
+				$answer = $this->work($jobid, $p);
+				if (!is_object($answer)) {
+					$x = new Zmws_Worker_Answer();
+					if ($answer !== TRUE && $answer !== FALSE) {
+						//we have something that might be
+						// null or any non-boolean value
+						// let's treat it as a return value 
+						// with a passing status
+						$x->retval = $answer;
+						$x->status = TRUE;
+					} else {
+						// we only have T/F return from worker
+						// let's treat it as pass/fail status
+						$x->status = $answer;
+					}
+					$answer    = $x;
+				}
+				//transform answer into zanswer
+				$zanswer = new Zmsg($socket);
+				if ($answer->status) {
 					$zanswer->body_set("COMPLETE: ".$jobid);
 					$zanswer->wrap($this->serviceName);
-					$zanswer->send();
-
+					if ($answer->retval !== NULL) {
+						$zanswer->push('PARAM-JSON: '. json_encode($answer->retval));
+						$this->log("Replying with return param", 'I');
+					}
 				} else {
-					$zanswer = new Zmsg($socket);
 					$zanswer->body_set("FAIL: ".$jobid);
 					$zanswer->wrap($this->serviceName);
-					$zanswer->send();
 				}
 				} catch (Exception $e) {
-					var_dump($e->getMessage());
-					$zanswer = new Zmsg($socket);
+					$this->log($e->getMessage(), 'E');
 					$zanswer->body_set("FAIL: ".$jobid);
 					$zanswer->wrap($this->serviceName);
-					$zanswer->send();
-
 				}
+				$zanswer->send();
 			}
 			//communication with server, reset HB retries
         	$this->hbRetries   = HEARTBEAT_RETRIES;
@@ -220,4 +238,9 @@ class Zmws_Worker_Base {
 
 		printf("[%s] [%s] - %s\n", date('r'), $lvl, $msg);
 	}
+}
+
+class Zmws_Worker_Answer {
+	public $status = NULL;
+	public $retval = NULL;
 }
