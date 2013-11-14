@@ -31,7 +31,6 @@ function restartServer($name, $file, $flags) {
 		echo sprintf("Cannot read %s%s", $file, PHP_EOL);
 		return FALSE;
 	}
-//	exec('php '. $file);
 
 	$pid = trim(@file_get_contents('run/'.$name.'.pid'));
 
@@ -53,7 +52,7 @@ function restartServer($name, $file, $flags) {
 		}
 	}
 
-	exec('php '.$file.' '.$option.'  >> logs/'.$name.'.txt 2>&1 & echo $!', $output, $ret);
+	exec('php -d extension=zmq.so '.$file.' '.$option.'  >> logs/'.$name.'.txt 2>&1 & echo $!', $output, $ret);
 	$pid = $output[0];
 	`echo '$pid' > run/$name.pid`;
 	echo $name." started ($pid)\n";
