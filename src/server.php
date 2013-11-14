@@ -126,7 +126,7 @@ class Zmws_Server {
 		$id = key($this->workerList[$svc]);
 
 		if ($clear) {
-			print ("I: dequeing worker $id\n");
+			$this->log(sprintf ("dequeing worker %s", $id) , 'I' );
 			unset($this->workerList[$svc][$id]);
 		}
 		return $id;
@@ -140,10 +140,8 @@ class Zmws_Server {
 		$mt = microtime(true);
 		foreach($this->workerList as $serv => $jlist) {
 			foreach($jlist as $id => $jdef) {
-//		printf ("I: purging %0.4f%s",  $mt, PHP_EOL);
-//		printf ("I: purging %s %0.4f%s", $id,  $jdef['hb'], PHP_EOL);
 				if(microtime(true) > $jdef['hb']) {
-		printf ("I: purging %s%s",  $id, PHP_EOL);
+					$this->log ( sprintf("purging stale worker %s, havent seen HB in %d seconds.",  $id, (HEARTBEAT_INTERVAL * HEARTBEAT_MAXTRIES) ), 'W');
 					unset($this->workerList[$serv][$id]);
 				}
 			}
@@ -230,15 +228,13 @@ class Zmws_Server {
 		$zmsg->wrap( $_j['clientid'] );
 		$zmsg->wrap( $wid );
 
-//		printf ("D: BE OUT %s", PHP_EOL);
-//		print $zmsg->__toString();
 		$zmsg->send();
 
 		$_j['startedat'] = microtime(true);
 		$this->activeJobList[$jid] = $_j;
 		//remove from array
 		array_shift($this->queueJobList);
-		printf ("I: * Starting Job %s  left %d%s", $jid, count($this->queueJobList), PHP_EOL);
+		$this->log( sprintf("Starting job %s, jobs left in queue %d",  $jid, count($this->queueJobList)), 'I');
 	}
 
 
@@ -251,13 +247,14 @@ class Zmws_Server {
 		$identity      = $zmsg->address();
 		$binary        = $zmsg->unwrap();
 
+		$this->log( sprintf("zmsg parts %d", $zmsg->parts()), 'D' );
 		if($zmsg->parts() == 1) {
 
 			if($zmsg->body() == 'HEARTBEAT') {
-				$this->log( sprintf("HB from %s %s", $identity,  PHP_EOL), 'D' );
+				$this->log( sprintf("HB from %s", $identity), 'D' );
 				$this->refreshWorker($identity);
 			}
-
+			return;
 		}
 
 
@@ -288,11 +285,6 @@ class Zmws_Server {
 	 */
 	public function handleFront($zmsg) {
 
-//		printf ("D: FE IN %s", PHP_EOL);
-//		print $zmsg->__toString();
-
-
-		//$blank = $zmsg->unwrap();
 		$job = $zmsg->body();
 
 		if ( substr($job, 0, 5) ==  'JOB: ') {
@@ -316,8 +308,6 @@ class Zmws_Server {
 			return;
 		}
 
-		$this->log( sprintf ("request for job %s", $job), 'D' );
-
 		//address unwraps and encodes binary uuids
 		$client_id = $zmsg->address();
 		$bin_client_id = $zmsg->unwrap();
@@ -325,7 +315,7 @@ class Zmws_Server {
 
 //		printf ("D: client id %s%s", $client_id, PHP_EOL);
 		if (!$this->haveSeenJob($job)) {
-			printf ("E: no service for job \"%s\"%s", $job, PHP_EOL);
+			$this->log( sprintf("No worker can handle job \"%s\"", $job), 'E');
 			$zmsgReply = new Zmsg($this->frontend);
 			$zmsgReply->body_set("FAIL: ".$job);
 			$zmsgReply->wrap( null );
@@ -369,9 +359,9 @@ class Zmws_Server {
 			if (count($this->histJobList) > 100) {
 				array_shift($this->histJobList);
 			}
+
 //			$zmsg->set_socket($this->news)->send();
 			$this->appendWorker($identity, $service);
-			//$list->worker_append($identity, $service);
 	}
 
 	/**
@@ -382,17 +372,11 @@ class Zmws_Server {
 			return false;
 		}
 
-		/*
-		if($len == 17 && $part[0] == 0) {
-			$part = $this->s_encode_uuid($part);
-			$len = strlen($part);
-		}
-		 */
-
 		if (!$id) {
 			$id = Zmws_Server::gen_id();
 		}
 		$this->queueJobList[$id] = array('service'=>$service, 'reqtime'=>time(), 'param'=>$param, 'clientid'=>$clientId, 'jobid'=>$id);
+		$this->log( sprintf ("Request for job %s. queue size: %d", $service, count($this->queueJobList)), 'I' );
 
 		return $id;
 	}
@@ -477,10 +461,9 @@ class Zmws_Server {
 					$this->workerList[$job][$id]['hb'] = microtime(true) + HEARTBEAT_INTERVAL * HEARTBEAT_MAXTRIES;
 					return;
 				}
-
 			}
 		}
-		printf ("E: worker %s not ready\n", $id);
+		$this->log(sprintf ("worker %s sent HB, but not in list.", $id) , 'E' );
 	}
 
 	public function cleanup() {
