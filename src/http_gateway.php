@@ -48,6 +48,7 @@ $log_level     = cli_config_get($args, array('log',   'log-level'), 'W');
 set_time_limit (0);
 $gserver = new Zmws_Gateway($client_port, $http_port, $listen_addr);
 $gserver->log_level = $log_level;
+$gserver->zm->log_level = $log_level;
 
 
 echo "Server startup @".date('r')." polling sockets....\n";
@@ -69,7 +70,7 @@ class Zmws_Gateway {
 
 	public $clientList = array();
 	public $reqList    = array();
-
+	public $log_level     = 'E';
 
 	public function __construct($zmport, $httpport, $addr) {
 		$this->htport = $httpport;
@@ -106,7 +107,6 @@ class Zmws_Gateway {
 			$this->clientList[] = socket_accept($this->sock);
 			$ip = $port = '';
 			socket_getpeername( end($this->clientList), $ip, $port);
-//			echo "Got new client $ip $port\n";
 			$this->log('got new client ('.$ip.':'.$port.')', 'D');
 		}
 
@@ -158,9 +158,17 @@ class Zmws_Gateway {
 			} else {
 				socket_write ($this->clientList[$_idx], "HTTP 501 INTERAL SERVER ERROR\n");
 			}
-			socket_write ($this->clientList[$_idx], "Content-length: ".strlen($reply)."\n");
+			if (is_object($reply)) {
+				$response = $reply->body();
+				if ($reply->parts() > 1) {
+					$response .= PHP_EOL.$reply->unwrap();
+				}
+			} else {
+				$response = $reply;
+			}
+			socket_write ($this->clientList[$_idx], "Content-length: ".strlen($response)."\n");
 			socket_write ($this->clientList[$_idx], "\n");
-			socket_write ($this->clientList[$_idx], $reply);
+			socket_write ($this->clientList[$_idx], $response);
 			$this->hangup($_idx);
 		}
 	}
@@ -264,11 +272,27 @@ class Zmws_Gateway {
 	 */
 	public function _parseParams($idx) {
 		$params  = (object) array();
-		if (!strpos($this->reqList[$idx]['body'], '&')) return $params;
+		$req     = $this->reqList[$idx];
 
-		$pairs   = explode('&', $this->reqList[$idx]['body']);
-		foreach  ($pairs as $_p) {
-			list($k, $v) = explode('=', $_p);
+		$sctParams = array();
+		$listGet = explode(' ', $req['request']);
+		$strGet  = @$listGet[1];
+		if (strpos($strGet, '?')) {
+			parse_str( 
+				substr($strGet,
+					strpos($strGet, '?')+1
+				),
+				$sctParams
+			);
+		}
+
+		if (!$sctParams) {
+			$sctParams = parse_str($req['body']);
+		}
+		if (!$sctParams) {
+			return $params;
+		}
+		foreach  ($sctParams as $k => $v) {
 			$params->{$k} = $v;
 		}
 		return $params;
@@ -323,6 +347,7 @@ class Zmws_Gateway {
 class Zmws_Gateway_Client {
 
 	public $frontend_port = '5554';
+	public $log_level     = 'E';
 
 	public function __construct($frontend_port='') {
 		if ($frontend_port) {
@@ -333,6 +358,9 @@ class Zmws_Gateway_Client {
 		$this->frontend->connect("tcp://*:".$this->frontend_port);    //  For clients
 	}
 
+	/**
+	 * @return Object Zeromq message
+	 */
 	public function send ($req, $param) {
 		if ($req['request'] == '') {
 			return '';
@@ -340,6 +368,14 @@ class Zmws_Gateway_Client {
 		$parts = explode(' ', $req['request']);
 		$job = $parts[1];
 		$job = ltrim($job, '/');
+
+		//clean up any GET query string
+		if (strpos($job, '?')) {
+			$job = substr($job,0,
+				strpos($job, '?')
+			);
+		}
+
 		$this->log('Sending job '.$job.'  to ZMQ', 'D');
 		if ($job == 'favicon.ico') {
 			return '';
@@ -358,7 +394,7 @@ class Zmws_Gateway_Client {
 		$this->log('Waiting to recv from ZMQ', 'D');
 
 		$reply = $request->recv();
-		return $reply->body();
+		return $reply;
 	}
 
 	/**

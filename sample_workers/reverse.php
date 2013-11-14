@@ -7,7 +7,7 @@ include_once ('src/worker_base.php');
 class Zmws_Worker_Reverse extends Zmws_Worker_Base {
 
 	public function work($jobid, $param='') {
-		return strrev("Hello, World.");
+		return strrev($param->str);
 	}
 }
 

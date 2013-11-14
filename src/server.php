@@ -234,7 +234,7 @@ class Zmws_Server {
 		$this->activeJobList[$jid] = $_j;
 		//remove from array
 		array_shift($this->queueJobList);
-		$this->log( sprintf("Starting job %s, jobs left in queue %d",  $jid, count($this->queueJobList)), 'I');
+		$this->log( sprintf("Starting job %s, Sync: %s, jobs left in queue %d",  $jid, ($_j['sync'])? 'TRUE':'FALSE', count($this->queueJobList)), 'I');
 	}
 
 
@@ -296,6 +296,13 @@ class Zmws_Server {
 			$job = substr($job, 5);
 		}
 
+		$sync = FALSE;
+		if (substr($job, 0, 5) === 'SYNC-') {
+			$sync = TRUE;
+			$job = substr($job, 5);
+			$this->log( sprintf("Synchronous job request for  \"%s\"", $job), 'D');
+		}
+
 		if ($job == 'SERVER-JOBS') {
 			$this->handleServerJobs($zmsg);
 			return;
@@ -318,7 +325,6 @@ class Zmws_Server {
 		$bin_client_id = $zmsg->unwrap();
 		$param         = $zmsg->unwrap();
 
-//		printf ("D: client id %s%s", $client_id, PHP_EOL);
 		if (!$this->haveSeenJob($job)) {
 			$this->log( sprintf("No worker can handle job \"%s\"", $job), 'E');
 			$zmsgReply = new Zmsg($this->frontend);
@@ -329,16 +335,15 @@ class Zmws_Server {
 			return;
 		}
 
-		$jobid = $this->handleWorkRequest($job, $client_id, $param);
+		$jobid = $this->handleWorkRequest($job, $client_id, $param, $sync);
+		if (!$sync) {
+			$zmsgReply = new Zmsg($this->frontend);
+			$zmsgReply->body_set("JOB: ".$jobid);
+			$zmsgReply->wrap( null );
+			$zmsgReply->wrap( $client_id );
 
-		$zmsgReply = new Zmsg($this->frontend);
-		$zmsgReply->body_set("JOB: ".$jobid);
-		$zmsgReply->wrap( null );
-		$zmsgReply->wrap( $client_id );
-
-//		printf ("D: FE OUT %s", PHP_EOL);
-//		print $zmsgReply->__toString();
-		$zmsgReply->send();
+			$zmsgReply->send();
+		}
 	}
 
 
@@ -365,6 +370,17 @@ class Zmws_Server {
 				array_shift($this->histJobList);
 			}
 
+			//if sync, send reply now
+			if ($_job['sync'] == TRUE) {
+				$zmsgReply = new Zmsg($this->frontend);
+				$zmsgReply->body_set("JOB: ".$jobid);
+				$zmsgReply->wrap($retval);
+				$zmsgReply->wrap( null );
+				$zmsgReply->wrap( $_job['clientid'] );
+
+				$zmsgReply->send();
+			}
+
 //			$zmsg->set_socket($this->news)->send();
 			$this->appendWorker($identity, $service);
 	}
@@ -372,7 +388,7 @@ class Zmws_Server {
 	/**
 	 * Record the request for a new job
 	 */
-	public function handleWorkRequest($service, $clientId, $param, $id=null) {
+	public function handleWorkRequest($service, $clientId, $param, $sync=FALSE, $id=null) {
 		if (!$clientId) {
 			return false;
 		}
@@ -380,7 +396,7 @@ class Zmws_Server {
 		if (!$id) {
 			$id = Zmws_Server::gen_id();
 		}
-		$this->queueJobList[$id] = array('service'=>$service, 'reqtime'=>time(), 'param'=>$param, 'clientid'=>$clientId, 'jobid'=>$id);
+		$this->queueJobList[$id] = array('service'=>$service, 'reqtime'=>time(), 'param'=>$param, 'clientid'=>$clientId, 'jobid'=>$id, 'sync'=>$sync);
 		$this->log( sprintf ("Request for job %s. queue size: %d", $service, count($this->queueJobList)), 'I' );
 
 		return $id;
