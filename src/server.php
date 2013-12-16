@@ -409,8 +409,17 @@ class Zmws_Server {
 	}
 
 	public function handleServerJobs($zmsg) {
-		$zmsg->body_set( json_encode(array_values($this->queueJobList)) );
-		$zmsg->set_socket($this->frontend)->send();
+		$client_id = $zmsg->address();
+
+
+		$zmsgReply = new Zmsg($this->frontend);
+		$zmsgReply->body_set( json_encode(array_values($this->queueJobList)) );
+		$zmsgReply->wrap( null );
+		$zmsgReply->wrap( $client_id );
+		$zmsgReply->send();
+
+//		$zmsg->body_set( json_encode(array_values($this->queueJobList)) );
+//		$zmsg->set_socket($this->frontend)->send();
 	}
 
 	public function handleServerActive($zmsg) {
