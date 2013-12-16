@@ -166,7 +166,12 @@ class Zmws_Gateway {
 			} else {
 				$response = $reply;
 			}
+			if (isset($params->jsonp)) {
+				$response= $params->jsonp.'('.$response.');';
+			}
 			socket_write ($this->clientList[$_idx], "Content-length: ".strlen($response)."\n");
+			socket_write ($this->clientList[$_idx], "Content-type: application/javascript\n");
+			socket_write ($this->clientList[$_idx], "Access-Control-Allow-Origin: *\n");
 			socket_write ($this->clientList[$_idx], "\n");
 			socket_write ($this->clientList[$_idx], $response);
 			$this->hangup($_idx);
