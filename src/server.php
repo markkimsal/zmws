@@ -213,28 +213,34 @@ class Zmws_Server {
 		if (!count($this->queueJobList)) return;
 //		printf ("D: * Start Jobs %d%s", count($this->queueJobList), PHP_EOL);
 		reset($this->queueJobList);
-		list ($jid, $_j) = each($this->queueJobList);
+		do {
+			list ($jid, $_j) = each($this->queueJobList);
 
-		$wid = $this->selectWorker($_j['service']);
-		//$wid  = $list->get_worker_for_job($_j['service']);
-		if (!$wid) {
-//			echo "no worker for job \n";
+			$wid = $this->selectWorker($_j['service']);
+			//$wid  = $list->get_worker_for_job($_j['service']);
+			if (!$wid) {
+	//			echo "no worker for job \n";
+				continue;
+			}
+			$zmsg = new Zmsg($this->backend);
+			$zmsg->body_set('JOB: '.$jid);
+			$zmsg->wrap( $_j['param'] );
+			$zmsg->wrap( null );
+			$zmsg->wrap( $_j['clientid'] );
+			$zmsg->wrap( $wid );
+
+			$zmsg->send();
+
+			$_j['startedat'] = microtime(true);
+			$this->activeJobList[$jid] = $_j;
+			//remove from array
+			unset($this->queueJobList[$jid]);
+//			array_shift($this->queueJobList);
+			$this->log( sprintf("Starting job %s, Sync: %s, jobs left in queue %d",  $jid, ($_j['sync'])? 'TRUE':'FALSE', count($this->queueJobList)), 'I');
+			//started a job? let's yeild to the network
 			return;
-		}
-		$zmsg = new Zmsg($this->backend);
-		$zmsg->body_set('JOB: '.$jid);
-		$zmsg->wrap( $_j['param'] );
-		$zmsg->wrap( null );
-		$zmsg->wrap( $_j['clientid'] );
-		$zmsg->wrap( $wid );
 
-		$zmsg->send();
-
-		$_j['startedat'] = microtime(true);
-		$this->activeJobList[$jid] = $_j;
-		//remove from array
-		array_shift($this->queueJobList);
-		$this->log( sprintf("Starting job %s, Sync: %s, jobs left in queue %d",  $jid, ($_j['sync'])? 'TRUE':'FALSE', count($this->queueJobList)), 'I');
+		} while (next($this->queueJobList));
 	}
 
 
