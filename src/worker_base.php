@@ -12,13 +12,15 @@ class Zmws_Worker_Base {
 	public $hbRetries    = 0;
 	public $hbInterval   = 0;
 
-	public $serviceName = 'DEMO';
-	public $backendPort = '5556';
-	public $context     = NULL;
-	public $backend     = NULL;
-	public $_identity   = '';
+	public $serviceName  = 'DEMO';
+	public $backendPort  = '5556';
+	public $frontendPort = '5555';
+	public $context      = NULL;
+	public $backend      = NULL;
+	public $frontend     = NULL;
+	public $_identity    = '';
 
-	public $log_level      = 'W';
+	public $log_level    = 'W';
 
 	public function __construct($backendPort='') {
 
@@ -38,10 +40,11 @@ class Zmws_Worker_Base {
 		}
 
 		$args = cli_args_parse();
-		$this->backendPort = cli_config_get($args, 'backend-port', $this->backendPort);
-		$this->serviceName = cli_config_get($args, 'service-name', $this->serviceName);
+		$this->backendPort   = cli_config_get($args, 'backend-port', $this->backendPort);
+		$this->frontendPort  = cli_config_get($args, 'frontend-port', $this->frontendPort);
+		$this->serviceName   = cli_config_get($args, 'service-name', $this->serviceName);
 		$this->setIdentity(cli_config_get($args, array('zmqid', 'id'), $this->_identity));
-		$this->log_level   = cli_config_get($args, array('log',   'log-level'), 'W');
+		$this->log_level     = cli_config_get($args, array('log',   'log-level'), 'W');
 	}
 
 	public function ready() {
@@ -49,6 +52,20 @@ class Zmws_Worker_Base {
 		$zready->body_set('READY');
 		$zready->wrap($this->serviceName);
 		$zready->send();
+	}
+
+	public function frontendSocket($port=FALSE) {
+		if ($port === FALSE) {
+			$port = $this->frontendPort;
+		}
+
+		$this->frontend   = new ZMQSocket($this->context, ZMQ::SOCKET_REQ);
+
+		//  Configure socket to not wait at close time
+//		$this->frontend->setSockOpt(ZMQ::SOCKOPT_LINGER, 0);
+		//connect
+		$this->frontend->connect("tcp://*:".$port);
+		$this->log("Worker connected as client @".date('r'), "I");
 	}
 
 	public function backendSocket($port) {
@@ -92,7 +109,7 @@ class Zmws_Worker_Base {
 			$this->setIdentity( $identity );
 		} 
 		return $this->_identity;
-	} 
+	}
 
 
 	public function loop() {
@@ -139,6 +156,7 @@ class Zmws_Worker_Base {
 				}
 				$jobid = substr($jobid, 5);
 
+				$zanswer = new Zmsg($socket);
 				try {
 				//workers can return TRUE/FALSE, or an object
 				// with a status and a return value
@@ -160,7 +178,6 @@ class Zmws_Worker_Base {
 					$answer    = $x;
 				}
 				//transform answer into zanswer
-				$zanswer = new Zmsg($socket);
 				if ($answer->status) {
 					$zanswer->body_set("COMPLETE: ".$jobid);
 					$zanswer->wrap($this->serviceName);
@@ -174,6 +191,7 @@ class Zmws_Worker_Base {
 				}
 				} catch (Exception $e) {
 					$this->log($e->getMessage(), 'E');
+					$this->log(print_r($e->getTrace(),1), 'E');
 					$zanswer->body_set("FAIL: ".$jobid);
 					$zanswer->wrap($this->serviceName);
 				}
