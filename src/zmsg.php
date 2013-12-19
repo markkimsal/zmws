@@ -275,7 +275,7 @@ class Zmsg {
 		$string = "--------------------------------------" . PHP_EOL;
 		foreach($this->_parts as $index => $part) {
 			$len = strlen($part);
-			if($len == 17 && $part[0] == 0) {
+			if($len == 17 && $part[0] == chr(0)) {
 				$part = $this->s_encode_uuid($part);
 				$len = strlen($part);
 			}
