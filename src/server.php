@@ -174,10 +174,12 @@ class Zmws_Server {
 				// BACKEND
 				//  Handle worker activity on backend
 				if($socket === $this->backend) {
+					$this->log( sprintf("Backend IN %s", $zmsg), 'D' );
 					$this->handleBack($zmsg);
 				} else {
 					// FRONTEND
 					//  Now get next client request, route to next worker
+					$this->log( sprintf("Frontend IN %s", $zmsg), 'D' );
 					$this->handleFront($zmsg);
 				}
 			}
@@ -222,12 +224,16 @@ class Zmws_Server {
 	//			echo "no worker for job \n";
 				continue;
 			}
+
+			$this->log( sprintf("Starting job %s, Sync: %s, With Param: %s, Queue size %d",  $jid, ($_j['sync'])? 'TRUE':'FALSE', (strlen($_j['param']))?'TRUE':'FALSE', count($this->queueJobList)), 'I');
 			$zmsg = new Zmsg($this->backend);
 			$zmsg->body_set('JOB: '.$jid);
 			$zmsg->wrap( $_j['param'] );
 			$zmsg->wrap( null );
 			$zmsg->wrap( $_j['clientid'] );
 			$zmsg->wrap( $wid );
+
+			$this->log( sprintf("Backend OUT %s", $zmsg), 'D' );
 
 			$zmsg->send();
 
@@ -236,7 +242,7 @@ class Zmws_Server {
 			//remove from array
 			unset($this->queueJobList[$jid]);
 //			array_shift($this->queueJobList);
-			$this->log( sprintf("Starting job %s, Sync: %s, jobs left in queue %d",  $jid, ($_j['sync'])? 'TRUE':'FALSE', count($this->queueJobList)), 'I');
+			//
 			//started a job? let's yeild to the network
 			return;
 
@@ -249,7 +255,6 @@ class Zmws_Server {
 	 */
 	public function handleBack($zmsg) {
 
-		$this->log( sprintf("Backend IN %s", $zmsg), 'D' );
 		$identity      = $zmsg->address();
 		$binary        = $zmsg->unwrap();
 
