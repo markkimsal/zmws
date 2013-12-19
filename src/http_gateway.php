@@ -291,11 +291,14 @@ class Zmws_Gateway {
 			);
 		}
 
+		$this->log('Request body '.$req['body'], 'D');
+		//try raw JSON post body
 		if (!$sctParams) {
-			$sctParams = parse_str($req['body']);
+			$sctParams = json_decode($req['body']);
 		}
+		//try POST k=v&k=v format
 		if (!$sctParams) {
-			return $params;
+			parse_str($req['body'], $sctParams);
 		}
 		foreach  ($sctParams as $k => $v) {
 			$params->{$k} = $v;
@@ -381,20 +384,22 @@ class Zmws_Gateway_Client {
 			);
 		}
 
-		$this->log('Sending job '.$job.'  to ZMQ', 'D');
 		if ($job == 'favicon.ico') {
+			$this->log('Ignoring job '.$job, 'D');
 			return '';
 		}
+		$this->log('Sending job '.$job.' to ZMQ', 'D');
 		if (trim($job) == '') {
 			return 'FNF';
 		}
 		$request = new Zmsg($this->frontend);
 		$request->body_set('JOB: '.$job);
-		if (!empty($param)) {
+		if (count((array)$param)) {
 			$this->log('Sending param '.json_encode($param).'  to ZMQ', 'D');
 			$request->push('PARAM-JSON: '. json_encode($param));
 		}
 
+		$this->log('Frontend OUT '.$request, 'D');
 		$request->send();
 		$this->log('Waiting to recv from ZMQ', 'D');
 
