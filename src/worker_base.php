@@ -137,7 +137,7 @@ class Zmws_Worker_Base {
 				if ($zmsg->parts() == 2) {
 					$param = $zmsg->unwrap();
 					if (strpos($param, 'PARAM') !== FALSE) {
-						list($k, $v) = explode(': ', $param);
+						list($k, $v) = explode(': ', $param, 2);
 						if (strpos($k, 'JSON') !== FALSE) {
 							$p = json_decode($v);
 						}
