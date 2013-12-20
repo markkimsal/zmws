@@ -38,5 +38,21 @@ $workerList = array(
 			//without this, a crash would leave unfinished jobs in limbo
 			'zmqid' => 'sleep_a'
 		)
+	),
+	array(
+		'file'=>'sample_workers/reverse.php',
+		//name manages the log name and pid name
+		'name'=>'rev_a',
+		'flags'=> array(
+			'log-level'=>'E',
+			'frontend-port'=>'5555',
+			'backend-port'=>'5556',
+
+			//without this, the inherited DEMO would be used
+			'service-name' => 'STR-REV',
+
+			//without this, a crash would leave unfinished jobs in limbo
+			'zmqid' => 'rev_a'
+		)
 	)
 );
