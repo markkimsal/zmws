@@ -5,15 +5,19 @@ $serverList = array(
 		'file'=>'src/server.php',
 		'name'=>'server',
 		'flags'=> array(
+			'log-level'=>'E',
 			'client-port'=>'5555',
 			'worker-port'=>'5556',
+			'news-port'=>'5557'
 		)
 	),
 	array(
 		'file'=>'src/http_gateway.php',
 		'name'=>'gateway',
 		'flags'=> array(
-			'client-port'=>'5555'
+			'log-level'=>'I',
+			'client-port'=>'5555',
+			'http-port'=>'5580'
 		)
 	)
 );
@@ -21,8 +25,13 @@ $serverList = array(
 $workerList = array(
 	array(
 		'file'=>'sample_workers/sleep.php',
+		//name manages the log name and pid name
 		'name'=>'sleep_a',
 		'flags'=> array(
+			'log-level'=>'E',
+			'frontend-port'=>'5555',
+			'backend-port'=>'5556',
+
 			//without this, the inherited DEMO would be used
 			'service-name' => 'SLEEP',
 
