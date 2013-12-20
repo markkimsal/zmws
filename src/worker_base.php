@@ -83,6 +83,7 @@ class Zmws_Worker_Base {
         $this->hbInterval  = HEARTBEAT_INTERVAL;
 
 		//connect
+		$this->log("connecting to tcp://*:".$port, "D");
 		$this->backend->connect("tcp://*:".$port);
 
 		$oldlog = $this->log_level;
