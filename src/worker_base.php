@@ -83,7 +83,6 @@ class Zmws_Worker_Base {
         $this->hbInterval  = HEARTBEAT_INTERVAL;
 
 		//connect
-		$this->log("connecting to tcp://*:".$port, "D");
 		$this->backend->connect("tcp://*:".$port);
 
 		$oldlog = $this->log_level;
@@ -184,11 +183,12 @@ class Zmws_Worker_Base {
 					$zanswer->wrap($this->serviceName);
 					if ($answer->retval !== NULL) {
 						$zanswer->push('PARAM-JSON: '. json_encode($answer->retval));
-						$this->log("Replying with return param", 'I');
 					}
+					$this->log(sprintf("Job %s complete", $jobid), 'I');
 				} else {
 					$zanswer->body_set("FAIL: ".$jobid);
 					$zanswer->wrap($this->serviceName);
+					$this->log(sprintf("Job %s failed", $jobid), 'I');
 				}
 				} catch (Exception $e) {
 					$this->log($e->getMessage(), 'E');

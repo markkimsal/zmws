@@ -107,7 +107,7 @@ class Zmws_Gateway {
 			$this->clientList[] = socket_accept($this->sock);
 			$ip = $port = '';
 			socket_getpeername( end($this->clientList), $ip, $port);
-			$this->log('got new client ('.$ip.':'.$port.')', 'D');
+			$this->log('New client connected ('.$ip.':'.$port.')', 'I');
 		}
 
 		$this->readClients($read, $except);
@@ -138,7 +138,6 @@ class Zmws_Gateway {
 				return;
 			}
 			$params = $this->_parseParams($_idx);
-			$this->log('Sending request to ZMQ', 'D');
 			$reply = $this->zm->send($req, $params);
 
 /*
@@ -399,6 +398,7 @@ class Zmws_Gateway_Client {
 			$request->push('PARAM-JSON: '. json_encode($param));
 		}
 
+		$this->log('Forwarding request to ZMQ for job: '. $job, 'I');
 		$this->log('Frontend OUT '.$request, 'D');
 		$request->send();
 		$this->log('Waiting to recv from ZMQ', 'D');

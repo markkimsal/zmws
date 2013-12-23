@@ -367,10 +367,12 @@ class Zmws_Server {
 
 			$_job = $this->activeJobList[$jobid];
 
+			$answer = 'COMPLETE';
 			if ($success)
 				$this->log( sprintf ("JOB COMPLETE: %s %s - took %0.4f sec", $_job['service'], $jobid, (microtime(true) - $_job['startedat'])), 'I' );
 			else {
 				$this->log( sprintf ("JOB FAILED: %s %s - took %0.4f sec", $_job['service'], $jobid, (microtime(true) - $_job['startedat'])), 'I' );
+				$answer = 'FAIL';
 			}
 
 			$_job['completedat'] = microtime(true);
@@ -384,7 +386,7 @@ class Zmws_Server {
 			//if sync, send reply now
 			if ($_job['sync'] == TRUE) {
 				$zmsgReply = new Zmsg($this->frontend);
-				$zmsgReply->body_set("JOB: ".$jobid);
+				$zmsgReply->body_set($answer.": ".$jobid);
 				$zmsgReply->wrap($retval);
 				$zmsgReply->wrap( null );
 				$zmsgReply->wrap( $_job['clientid'] );
