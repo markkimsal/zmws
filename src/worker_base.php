@@ -22,6 +22,8 @@ class Zmws_Worker_Base {
 
 	public $log_level    = 'W';
 
+	public $listBackendSrv   = array('127.0.0.1');
+
 	public function __construct($backendPort='') {
 
 		$this->_cliFlags();
@@ -45,6 +47,8 @@ class Zmws_Worker_Base {
 		$this->serviceName   = cli_config_get($args, 'service-name', $this->serviceName);
 		$this->setIdentity(cli_config_get($args, array('zmqid', 'id'), $this->_identity));
 		$this->log_level     = cli_config_get($args, array('log',   'log-level'), 'W');
+
+		$this->listBackendSrv    = explode(',', cli_config_get($args, array('backend-server', 'backend-servers'), implode(',',$this->listBackendSrv)));
 	}
 
 	public function ready() {
@@ -64,11 +68,17 @@ class Zmws_Worker_Base {
 		//  Configure socket to not wait at close time
 //		$this->frontend->setSockOpt(ZMQ::SOCKOPT_LINGER, 0);
 		//connect
-		$this->frontend->connect("tcp://*:".$port);
 		$this->log("Worker connected as client @".date('r'), "I");
+		$this->frontend->connect("tcp://*:".$port);
 	}
 
 	public function backendSocket($port) {
+		if (!current($this->listBackendSrv)) {
+			reset($this->listBackendSrv);
+		}
+		$addrBackend = current($this->listBackendSrv);
+		next($this->listBackendSrv);
+
 		$this->backend   = new ZMQSocket($this->context, ZMQ::SOCKET_DEALER);
 
 		$this->backend->setSockOpt(ZMQ::SOCKOPT_IDENTITY, $this->getIdentity());
@@ -83,10 +93,12 @@ class Zmws_Worker_Base {
         $this->hbInterval  = HEARTBEAT_INTERVAL;
 
 		//connect
-		$this->backend->connect("tcp://*:".$port);
-
 		$oldlog = $this->log_level;
 		$this->log_level = 'I';
+
+		$this->log("Worker connecting to ".$addrBackend." with port: ".$port, "I");
+		$this->backend->connect("tcp://".$addrBackend.":".$port);
+
 		$this->log("Worker startup @".date('r'), "I");
 		$this->log_level = $oldlog;
 	}
