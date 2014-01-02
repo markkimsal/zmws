@@ -121,6 +121,7 @@ $worker->setDb($dbname);
 //  Send out heartbeats at regular intervals
 while(  $worker->loop() ) { 
 }
+```
 
 Sample Workers
 =====
