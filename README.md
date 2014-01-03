@@ -123,6 +123,34 @@ while(  $worker->loop() ) {
 }
 ```
 
+### Idle Loop
+After a certain amount of time without receiving work a worker will call its own idle() method.  This can be useful for freeing resources like database connections and open file handles.
+
+```php
+class W_Logger extends Worker_Base { 
+
+    public  $serviceName = 'LOG';
+    public  $fh;
+
+    public function work($jobid, $param='') { 
+        if (!$this->fh) {
+            $this->fh = fopen('/tmp/foo', 'w');
+        }
+        fputs ($this->fh, 'Logging job '. $jobid.PHP_EOL);
+        usleep (800000);
+        return TRUE;
+    }
+
+    public function idle() {
+        if ($this->fh) {
+            fputs ($this->fh, 'Worker idling... '.PHP_EOL);
+            fclose($this->fh);
+        }
+    }
+}
+```
+
+
 Sample Workers
 =====
 With the sample config file copied to etc/config.php you should have 2 sample workers by default.  You can verify this by going to  http://localhost:5580/SERVER-WORKERS and verifying the JSON output.
