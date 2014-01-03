@@ -12,6 +12,8 @@ class Zmws_Worker_Base {
 	public $hbRetries    = 0;
 	public $hbInterval   = 0;
 
+	public $idleCount    = 0;
+
 	public $serviceName  = 'DEMO';
 	public $backendPort  = '5556';
 	public $frontendPort = '5555';
@@ -133,6 +135,7 @@ class Zmws_Worker_Base {
 
 		$this->log("poll done.", "D");
 		if($events > 0) {
+			$this->idleCount = 0;
 			foreach($read as $socket) {
 				$zmsg = new Zmsg($socket);
 				$zmsg->recv();
@@ -229,10 +232,24 @@ class Zmws_Worker_Base {
 
 		if(microtime(true) > $this->hbAt) {
 			$this->heartbeat();
+			$this->idleCount++;
+		}
 
+		if ($this->idleCount >= 3) {
+			$this->idle();
+			$this->idleCount=0;
 		}
 
 		return TRUE;
+	}
+
+	/**
+	 * Called after 3 heartbeat intervals with no work requests.
+	 *
+	 * This function can be used to close resources like file handles 
+	 * and database connections.
+	 */
+	public function idle() {
 	}
 
 	/**
