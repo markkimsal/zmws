@@ -221,7 +221,7 @@ class Zmws_Server {
 			$wid = $this->selectWorker($_j['service']);
 			//$wid  = $list->get_worker_for_job($_j['service']);
 			if (!$wid) {
-	//			echo "no worker for job \n";
+				$this->log ( sprintf("No worker for job: %s", $_j['service'] ), 'D');
 				continue;
 			}
 
@@ -247,6 +247,7 @@ class Zmws_Server {
 			return;
 
 		} while (next($this->queueJobList));
+		$this->log ( sprintf("No jobs started, queue size is : %d",  count($this->queueJobList) ), 'W');
 	}
 
 
