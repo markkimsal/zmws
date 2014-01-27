@@ -221,7 +221,7 @@ class Zmws_Worker_Base {
 			$this->hbRetries--;
 			//no communication for HEARTBEAT_INTERVAL seconds
 			if ($this->hbRetries == 0) {
-				printf ("Server Died.%s", PHP_EOL);
+				$this->log(sprintf ("Server Died."), "E");
 				$this->backendSocket($this->backendPort);
 				$this->ready();
 			} else {

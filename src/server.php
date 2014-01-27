@@ -126,7 +126,7 @@ class Zmws_Server {
 		$id = key($this->workerList[$svc]);
 
 		if ($clear) {
-			$this->log(sprintf ("dequeing worker %s", $id) , 'I' );
+			//$this->log(sprintf ("Dequeue worker %s [%s]", $id, $svc) , 'I' );
 			unset($this->workerList[$svc][$id]);
 		}
 		return $id;
@@ -213,7 +213,6 @@ class Zmws_Server {
 	public function startJobs() {
 
 		if (!count($this->queueJobList)) return;
-//		printf ("D: * Start Jobs %d%s", count($this->queueJobList), PHP_EOL);
 		reset($this->queueJobList);
 		do {
 			$_j = current($this->queueJobList);
@@ -226,7 +225,7 @@ class Zmws_Server {
 				continue;
 			}
 
-			$this->log( sprintf("Starting job %s, Sync: %s, With Param: %s, Queue size %d",  $jid, ($_j['sync'])? 'TRUE':'FALSE', (strlen($_j['param']))?'TRUE':'FALSE', count($this->queueJobList)), 'I');
+			$this->log( sprintf("Starting job %s, [%s%s%s], for client: %s  Queue size %d",  $_j['service'], ($_j['sync'])? 'SYNC ':'', (strlen($_j['param']))?'PARAM ':'', $jid, $_j['clientid'], count($this->queueJobList)), 'I');
 			$zmsg = new Zmsg($this->backend);
 			$zmsg->body_set('JOB: '.$jid);
 			$zmsg->wrap( $_j['param'] );
@@ -248,7 +247,7 @@ class Zmws_Server {
 			return;
 
 		} while (next($this->queueJobList));
-		$this->log ( sprintf("No jobs started, queue size is : %d",  count($this->queueJobList) ), 'W');
+		//$this->log ( sprintf("No jobs started, queue size is : %d",  count($this->queueJobList) ), 'W');
 	}
 
 
@@ -354,7 +353,6 @@ class Zmws_Server {
 			$zmsgReply->body_set("JOB: ".$jobid);
 			$zmsgReply->wrap( null );
 			$zmsgReply->wrap( $client_id );
-
 			$zmsgReply->send();
 		}
 	}
@@ -371,9 +369,9 @@ class Zmws_Server {
 
 			$answer = 'COMPLETE';
 			if ($success)
-				$this->log( sprintf ("JOB COMPLETE: %s %s - took %0.4f sec", $_job['service'], $jobid, (microtime(true) - $_job['startedat'])), 'I' );
+				$this->log( sprintf ("JOB COMPLETE: %s %s, client id: %s - took %0.4f sec", $_job['service'], $jobid, $_job['clientid'], (microtime(true) - $_job['startedat'])), 'I' );
 			else {
-				$this->log( sprintf ("JOB FAILED: %s %s - took %0.4f sec", $_job['service'], $jobid, (microtime(true) - $_job['startedat'])), 'I' );
+				$this->log( sprintf ("JOB FAILED: %s %s, client id: %s - took %0.4f sec", $_job['service'], $jobid, $_job['clientid'], (microtime(true) - $_job['startedat'])), 'I' );
 				$answer = 'FAIL';
 			}
 
@@ -392,7 +390,6 @@ class Zmws_Server {
 				$zmsgReply->wrap($retval);
 				$zmsgReply->wrap( null );
 				$zmsgReply->wrap( $_job['clientid'] );
-
 				$zmsgReply->send();
 			}
 
@@ -412,7 +409,7 @@ class Zmws_Server {
 			$id = Zmws_Server::gen_id();
 		}
 		$this->queueJobList[$id] = array('service'=>$service, 'reqtime'=>time(), 'param'=>$param, 'clientid'=>$clientId, 'jobid'=>$id, 'sync'=>$sync);
-		$this->log( sprintf ("Request for job %s. queue size: %d", $service, count($this->queueJobList)), 'I' );
+		$this->log( sprintf ("Request for job %s (sync:".$sync."). queue size: %d", $service, count($this->queueJobList)), 'D' );
 
 		return $id;
 	}
@@ -460,9 +457,9 @@ class Zmws_Server {
 		$this->seeJob($svc);
 
 		if(isset($this->workerList[$svc][$id])) {
-			$this->log( sprintf ("duplicate worker identity %s", $id), 'E');
+			$this->log( sprintf ("Duplicate worker identity %s", $id), 'E');
 		} else {
-			$this->log( sprintf ("appending worker %s for %s", $id, $svc) , 'I');
+			//$this->log( sprintf ("Append worker %s [%s]", $id, $svc) , 'D');
 			$this->workerList[$svc][$id] = array(
 				'hb'=>microtime(true) + HEARTBEAT_INTERVAL * HEARTBEAT_MAXTRIES,
 				'service'=>$svc, 
