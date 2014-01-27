@@ -216,7 +216,8 @@ class Zmws_Server {
 //		printf ("D: * Start Jobs %d%s", count($this->queueJobList), PHP_EOL);
 		reset($this->queueJobList);
 		do {
-			list ($jid, $_j) = each($this->queueJobList);
+			$_j = current($this->queueJobList);
+			$jid = key($this->queueJobList);
 
 			$wid = $this->selectWorker($_j['service']);
 			//$wid  = $list->get_worker_for_job($_j['service']);
