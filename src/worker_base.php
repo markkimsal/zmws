@@ -135,7 +135,6 @@ class Zmws_Worker_Base {
 
 		$this->log("poll done.", "D");
 		if($events > 0) {
-			$this->idleCount = 0;
 			foreach($read as $socket) {
 				$zmsg = new Zmsg($socket);
 				$zmsg->recv();
@@ -169,6 +168,8 @@ class Zmws_Worker_Base {
 					// as a job, so continue
 					continue;
 				}
+				//got a real job, restart idle
+				$this->idleCount = 0;
 				$jobid = substr($jobid, 5);
 
 				$zanswer = new Zmsg($socket);
@@ -235,12 +236,15 @@ class Zmws_Worker_Base {
 
 		if(microtime(true) > $this->hbAt) {
 			$this->heartbeat();
-			$this->idleCount++;
+			if ($this->idleCount > -1) {
+				$this->idleCount++;
+			}
 		}
 
 		if ($this->idleCount >= 3) {
 			$this->idle();
-			$this->idleCount=0;
+			//don't idle again until we get a job
+			$this->idleCount=-1;
 		}
 
 		return TRUE;
