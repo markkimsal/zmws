@@ -70,8 +70,8 @@ class Zmws_Worker_Base {
 		//  Configure socket to not wait at close time
 //		$this->frontend->setSockOpt(ZMQ::SOCKOPT_LINGER, 0);
 		//connect
-		$this->log("Worker connected as client @".date('r'), "I");
 		$this->frontend->connect("tcp://*:".$port);
+		$this->log("Worker connected as client @".date('r'), "I");
 	}
 
 	public function backendSocket($port) {
