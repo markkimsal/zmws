@@ -212,6 +212,9 @@ class Zmws_Worker_Base {
 					$zanswer->wrap($this->serviceName);
 				}
 				$zanswer->send();
+				//work may have taken longer than one HB interval,
+				//we should start timing new HBs from now
+				$this->hbAt = microtime(true) + HEARTBEAT_INTERVAL;
 			}
 			//communication with server, reset HB retries
         	$this->hbRetries   = HEARTBEAT_RETRIES;
