@@ -1,20 +1,18 @@
-zmws
+ZeroMQ Work Server (zmws)
 ====
 
-ZeroMQ Work Server
+This project provides a work server which can distribute named jobs to distributed worker processes over a network.  It's slightly different from a "Message Queue" in that it is specifically tailored for requesting jobs and - optionally - getting return parameters.
 
-This server is taken mostly from the Paranoid Pirate example of ZeroMQ but it can handle workers who only know how to do a specific job.  It doesn't send any job to any worker.
+The protocol is implemented in ZeroMQ and follows the Majordomo Protocol with a slight difference.  When a job is sent to a worker, the server may quickly disconnect and let the worker perform tasks in isolation, or it may wait synchronously for the worker to finish and accept return parameters.
 
-The server keeps a list of services from any worker (alive, busy, or dead) which previously connected.  When a job request comes in from a client, the server checks its list of previously seen services and responds right away with a new JOB ID (to be executed later) or a failure notice that there are no workers providing that service.
+When a client wants to run a job, it sends a ZMQ message with "JOB: service-name" where service-name is a service that can be performed by a worker.  When workers connect to the server, they identify themselves as being able to perform a single service.  A client may send parameters as another ZMQ message frame like: "PARAM: php-serialized-params"  or "JSON-PARAM: json-encoded-object".  Parameters are automatically decoded by workers before any work begins.
 
-The client cannot know if the job completed successfully other than checking for whatever results the worker would provide.  Depending on the message load, the client may poll and inspect a list of the last 100 completed jobs by asking the server for SERVER-JOBS.
+The project also includes an HTTP gateway server so clients don't need to be compiled with any ZeroMQ library to take advantage of requesting work to be done.  Parameters are collected either from GET or POST and are passed to the worker as JSON-PARAM (never PHP serialization).
 
-When a worker has a job, the server de-lists them from the known workers.  When a worker is finished, it replies with a COMPLETE or FAIL status and also includes the type of service it can provide.  The server re-adds the worker to the list of available workers for that service.  When a worker is working, the server knows nothing about them, this is effectively like having the worker be dead.
 
-How is this better than exec() ?
+How is this different from exec() ?
 ====
-Yes, exec('./sometask > /dev/null 2>&1 &'); can get you a background task.  All in all, there isn't much difference between backgrounding a task with exec and sending 
-messages to a message queue or work server - if you're only ever on one physical machine.  The benefit from using a work server or other messaging solution is that you are prepared for growth.  If your project becomes successfull, how will you federate that exec('./sometask') to other machines?  Using something like ZMWS allows you to easily move workers onto different nodes, have 4 or 5 workers all performing the same task, or throttle excessive or abusive requests to a managable level.  Using a full messaging solution like ZMWS or Apache ActiveMQ will also force your code to be written with the idea of a messaging framework in it, making it adaptable in the future.
+Yes, exec('./sometask > /dev/null 2>&1 &'); can get you a background task.  But, when using a message queue or work server, the central server acts as a buffer - or rubber band - stretching it's capacity to remember jobs and only executing one at a time.  This keeps resources of a single machine in check.  More than one worker can be spawned from each worker class file, meaning you can be ready to handle as many simultaneous requests as your server hardware can handle for any particular job.  Also, the workers can be located on a physically seperate machine from the Web tier, or spread out across lots of machines, the work server delivers jobs in a Round Robin scheme.
 
 How is this different from gearman?
 ====
@@ -25,8 +23,13 @@ Gearman's job server - gearmand - is written in C.  This alleviates any potentia
 Majordomo Pattern
 ====
 This implementation is very similar to the majordomo protocol detailed here: http://rfc.zeromq.org/spec:7
-One difference is that job requests are *asynchronous* by default.  Synchronous jobs can be requested by prefixing the service name with "SYNC:".
+One difference is that job requests are *asynchronous* by default.  Synchronous jobs can be requested by prefixing the service name with "SYNC-".
 
+
+Installation
+====
+Clone and build the PHP-ZQM bindings from: https://github.com/mkoppanen/php-zmq (phpize; ./configure; make; sudo make install).
+Now you make fork, clone or use this project as a dependency inside your own project (http://bower.io).
 
 Configuration
 ====
