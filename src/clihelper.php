@@ -6,6 +6,7 @@ function cli_args_parse() {
 
 	$configList = array();
 	//remove name of file
+	if (isset($argv[0]) && substr($argv[0],0, 1) !== '-')
 	array_shift($argv);
 	//var_dump($argv);
 	foreach ($argv as $idx => $a) {

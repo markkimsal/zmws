@@ -39,7 +39,7 @@ class Zmws_Worker_Base {
 	}
 
 	public function _cliFlags() {
-		if( ! @include_once('src/clihelper.php') ){
+		if( ! @include_once(dirname(__FILE__).'/clihelper.php') ){
 			return;
 		}
 
