@@ -1,11 +1,6 @@
 <?php
 
-chdir( dirname(dirname(__FILE__)) );
-if (!@include('etc/config.php')) {
-	die("Cannot read etc/config.php\n");
-}
-
-if (!@include('src/clihelper.php')) {
+if (!@include(dirname(dirname(__FILE__)).'/src/clihelper.php')) {
 	die("Cannot read src/clihelper.php\n");
 }
 
@@ -13,6 +8,11 @@ $flags =  cli_args_parse();
 
 $serverFlag = cli_config_get($flags, 'servers', FALSE);
 $workerFlag = cli_config_get($flags, 'workers', FALSE);
+$configFile = cli_config_get($flags, 'c', 'etc/config.php');
+
+if (!@include($configFile)) {
+	die("Cannot read etc/config.php\n");
+}
 
 if ($serverFlag || (!$serverFlag && !$workerFlag)) {
 	foreach ($serverList as $k => $v) {
