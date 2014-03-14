@@ -1,5 +1,5 @@
 <?php
-include_once('src/zmsg.php');
+include_once(dirname(__FILE__).'/zmsg.php');
 define ("HEARTBEAT_INTERVAL", 3); //sec
 define ("HEARTBEAT_RETRIES",  5); //server died after this many HB
 
@@ -64,13 +64,17 @@ class Zmws_Worker_Base {
 		if ($port === FALSE) {
 			$port = $this->frontendPort;
 		}
+		if (!current($this->listBackendSrv)) {
+			reset($this->listBackendSrv);
+		}
+		$addrBackend = current($this->listBackendSrv);
 
 		$this->frontend   = new ZMQSocket($this->context, ZMQ::SOCKET_REQ);
 
 		//  Configure socket to not wait at close time
 //		$this->frontend->setSockOpt(ZMQ::SOCKOPT_LINGER, 0);
 		//connect
-		$this->frontend->connect("tcp://*:".$port);
+		$this->frontend->connect("tcp://".$addrBackend.":".$port);
 		$this->log("Worker connected as client @".date('r'), "I");
 	}
 
@@ -79,7 +83,6 @@ class Zmws_Worker_Base {
 			reset($this->listBackendSrv);
 		}
 		$addrBackend = current($this->listBackendSrv);
-		next($this->listBackendSrv);
 
 		$this->backend   = new ZMQSocket($this->context, ZMQ::SOCKET_DEALER);
 
@@ -226,7 +229,10 @@ class Zmws_Worker_Base {
 			//no communication for HEARTBEAT_INTERVAL seconds
 			if ($this->hbRetries == 0) {
 				$this->log(sprintf ("Server Died."), "E");
+				//try the next server
+				next($this->listBackendSrv);
 				$this->backendSocket($this->backendPort);
+				$this->frontendSocket($this->frontendPort);
 				$this->ready();
 			} else {
 //				printf ("hb down (%d).%s", $this->hbRetries, PHP_EOL);
