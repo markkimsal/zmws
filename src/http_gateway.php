@@ -362,7 +362,7 @@ class Zmws_Gateway_Client {
 		}
 		$this->context   = new ZMQContext();
 		$this->frontend  = new ZMQSocket($this->context, ZMQ::SOCKET_REQ);
-		$this->frontend->connect("tcp://*:".$this->frontend_port);    //  For clients
+		$this->frontend->connect("tcp://127.0.0.1:".$this->frontend_port);    //  For clients
 	}
 
 	/**
