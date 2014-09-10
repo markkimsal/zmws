@@ -44,27 +44,27 @@ class Zmws_Client_Base {
 		}
 	}
 
-	public function task($sv, $param, $callback) { 
+	public function task($sv, $param, $callback=NULL) {
 
 		if (!$this->frontend) { 
 			$this->frontendSocket();
 		} 
 		//$this->listTaskCb[$sv] = $callback;
 		$this->listCallbacks[$sv] = $callback;
-		$this->listJobs[$sv]++;
+		@$this->listJobs[$sv]++;
 		$this->taskReq = new Zmsg($this->frontend);
 		$this->taskReq->body_set('JOB: SYNC-'.$sv);
 		$this->taskReq->push( 'PARAM-JSON: '.json_encode($param) );
 		return $this;
 	} 
 
-	public function stream($sv, $param, $callback) { 
+	public function stream($sv, $param, $callback=NULL) {
 
 		if (!$this->frontend) { 
 			$this->frontendSocket();
 		} 
 		$this->listCallbacks[$sv] = $callback;
-		$this->listJobs[$sv]++;
+		@$this->listJobs[$sv]++;
 		$this->streamReq = new Zmsg($this->frontend);
 		$this->streamReq->body_set('JOB: SYNC-'.$sv);
 		$this->streamReq->push( 'PARAM-JSON: '.json_encode($param) );
@@ -90,7 +90,7 @@ class Zmws_Client_Base {
 			//ID, null, message (for rep/req sockets)
 			$spacer = $reply->unwrap();
 			$body   = $reply->unwrap();
-			list ($status, $sv, $jobid) = explode(' ', $body);
+			@list ($status, $sv, $jobid) = @explode(' ', $body);
 			$status = substr($status, 0, -1);
 			$jobid  = rtrim($jobid, ']');
 			$jobid  = ltrim($jobid, '[');
@@ -127,7 +127,6 @@ class Zmws_Client_Base {
 				break;
 			}
 		}
-		echo "done listening \n";
 	}
 } 
 
