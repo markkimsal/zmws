@@ -143,6 +143,8 @@ class Zmws_Server {
 				if(microtime(true) > $jdef['hb']) {
 					$this->log ( sprintf("purging stale worker %s, havent seen HB in %d seconds.",  $id, (HEARTBEAT_INTERVAL * HEARTBEAT_MAXTRIES) ), 'W');
 					unset($this->workerList[$serv][$id]);
+
+					//$this->activeJobList[$jid] = $_j;
 				}
 			}
 		}
@@ -225,7 +227,7 @@ class Zmws_Server {
 				continue;
 			}
 
-			$this->log( sprintf("Starting job %s, [%s%s%s], for client: %s  Queue size %d",  $_j['service'], ($_j['sync'])? 'SYNC ':'', (strlen($_j['param']))?'PARAM ':'', $jid, $_j['clientid'], count($this->queueJobList)), 'I');
+			$this->log( sprintf("Starting job %s, [%s%s%s] to %s, for client: @%s  Queue size %d",  $_j['service'], ($_j['sync'])? 'SYNC ':'', (strlen($_j['param']))?'PARAM ':'', $jid, $wid, bin2hex($_j['clientid']), count($this->queueJobList)), 'I');
 			$zmsg = new Zmsg($this->backend);
 			$zmsg->body_set('JOB: '.$jid);
 			$zmsg->wrap( $_j['param'] );
@@ -237,6 +239,7 @@ class Zmws_Server {
 
 			$zmsg->send();
 
+			$_j['worker'] = $wid;
 			$_j['startedat'] = microtime(true);
 			$this->activeJobList[$jid] = $_j;
 			//remove from array
@@ -284,13 +287,17 @@ class Zmws_Server {
 				$this->deleteWorker($identity, $service);
 				$this->appendWorker($identity, $service);
 			}
+			if( strtoupper(substr($zmsg->body(), 0, 4) == 'FAIL') ) {
+				$jobid = substr($zmsg->body(), 6);
+				$this->handleFinishJob($zmsg, $jobid, $identity, $service, FALSE, $retval);
+			}
 			if( strtoupper(substr($zmsg->body(), 0, 8) == 'COMPLETE') ) {
 				$jobid = substr($zmsg->body(), 10);
 				$this->handleFinishJob($zmsg, $jobid, $identity, $service, TRUE, $retval);
 			}
-			if( strtoupper(substr($zmsg->body(), 0, 4) == 'FAIL') ) {
+			if( strtoupper(substr($zmsg->body(), 0, 4) == 'CONT') ) {
 				$jobid = substr($zmsg->body(), 6);
-				$this->handleFinishJob($zmsg, $jobid, $identity, $service, FALSE, $retval);
+				$this->handleJobAnswer($zmsg, $jobid, $identity, $service, TRUE, $retval);
 			}
 		} else {
 			$this->log( sprintf ("got a response that might have a return value: (%d) parts", count($zmsg->parts())), 'I' );
@@ -350,7 +357,7 @@ class Zmws_Server {
 		$jobid = $this->handleWorkRequest($job, $client_id, $param, $sync);
 		if (!$sync) {
 			$zmsgReply = new Zmsg($this->frontend);
-			$zmsgReply->body_set("JOB: ".$jobid);
+			$zmsgReply->body_set("JOB: ".$jobid. " ".$job);
 			$zmsgReply->wrap( null );
 			$zmsgReply->wrap( $client_id );
 			$zmsgReply->send();
@@ -369,9 +376,9 @@ class Zmws_Server {
 
 			$answer = 'COMPLETE';
 			if ($success)
-				$this->log( sprintf ("JOB COMPLETE: %s %s, client id: %s - took %0.4f sec", $_job['service'], $jobid, $_job['clientid'], (microtime(true) - $_job['startedat'])), 'I' );
+				$this->log( sprintf ("JOB COMPLETE: %s %s, client id: @%s - took %0.4f sec", $_job['service'], $jobid, bin2hex($_job['clientid']), (microtime(true) - $_job['startedat'])), 'I' );
 			else {
-				$this->log( sprintf ("JOB FAILED: %s %s, client id: %s - took %0.4f sec", $_job['service'], $jobid, $_job['clientid'], (microtime(true) - $_job['startedat'])), 'I' );
+				$this->log( sprintf ("JOB FAILED: %s %s, client id: @%s - took %0.4f sec", $_job['service'], $jobid, bin2hex($_job['clientid']), (microtime(true) - $_job['startedat'])), 'I' );
 				$answer = 'FAIL';
 			}
 
@@ -386,8 +393,8 @@ class Zmws_Server {
 			//if sync, send reply now
 			if ($_job['sync'] == TRUE) {
 				$zmsgReply = new Zmsg($this->frontend);
-				$zmsgReply->body_set($answer.": ".$jobid);
-				$zmsgReply->wrap($retval);
+				$zmsgReply->body_set($retval);
+				$zmsgReply->wrap($answer.": " .$_job['service']. " [".$jobid."]" );
 				$zmsgReply->wrap( null );
 				$zmsgReply->wrap( $_job['clientid'] );
 				$zmsgReply->send();
@@ -395,6 +402,22 @@ class Zmws_Server {
 
 //			$zmsg->set_socket($this->news)->send();
 			$this->appendWorker($identity, $service);
+	}
+
+
+	public function handleJobAnswer($zmsg, $jobid, $identity, $service, $success=true, $retval=NULL) {
+		$_job = $this->activeJobList[$jobid];
+
+		$this->log( sprintf ("JOB ANSWER: %s %s, client id: @%s - took %0.4f sec", $_job['service'], $jobid, bin2hex($_job['clientid']), (microtime(true) - $_job['startedat'])), 'I' );
+		//if sync, send reply now
+		if ($_job['sync'] == TRUE) {
+			$zmsgReply = new Zmsg($this->frontend);
+			$zmsgReply->body_set($retval);
+			$zmsgReply->wrap("CONT: " .$_job['service']. " [".$jobid."]" );
+			$zmsgReply->wrap(null);
+			$zmsgReply->wrap( $_job['clientid'] );
+			$zmsgReply->send();
+		}
 	}
 
 	/**

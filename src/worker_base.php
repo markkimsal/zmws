@@ -25,6 +25,7 @@ class Zmws_Worker_Base {
 	public $log_level    = 'W';
 
 	public $listBackendSrv   = array('127.0.0.1');
+	protected $_socketCurrent = NULL;
 
 	public function __construct($backendPort='') {
 
@@ -69,7 +70,7 @@ class Zmws_Worker_Base {
 		}
 		$addrBackend = current($this->listBackendSrv);
 
-		$this->frontend   = new ZMQSocket($this->context, ZMQ::SOCKET_REQ);
+		$this->frontend   = new ZMQSocket($this->context, ZMQ::SOCKET_DEALER);
 
 		//  Configure socket to not wait at close time
 //		$this->frontend->setSockOpt(ZMQ::SOCKOPT_LINGER, 0);
@@ -139,10 +140,19 @@ class Zmws_Worker_Base {
 		$this->log("poll done.", "D");
 		if($events > 0) {
 			foreach($read as $socket) {
+				$this->_socketCurrent = $socket;
 				$zmsg = new Zmsg($socket);
 				$zmsg->recv();
 
 				$jobid     = $zmsg->body();
+
+				if ($jobid == 'HEARTBEAT') {
+					//any comms with server resets HB retries
+					//but we don't want to treat this message 
+					// as a job, so continue
+					continue;
+				}
+
 				$client_id = $zmsg->address();
 				//this is just to remove the address and null to
 				// test for sizes (params)
@@ -165,18 +175,11 @@ class Zmws_Worker_Base {
 					unset($v);
 				}
 
-				if ($jobid == 'HEARTBEAT') {
-					//any comms with server resets HB retries
-					//but we don't want to treat this message 
-					// as a job, so continue
-					continue;
-				}
 				//got a real job, restart idle
 				$this->idleCount = 0;
 				$jobid = substr($jobid, 5);
+				$this->_jobidCurrent = $jobid;
 
-				$zanswer = new Zmsg($socket);
-				try {
 				//workers can return TRUE/FALSE, or an object
 				// with a status and a return value
 				$answer = $this->work($jobid, $p);
@@ -196,29 +199,7 @@ class Zmws_Worker_Base {
 					}
 					$answer    = $x;
 				}
-				//transform answer into zanswer
-				if ($answer->status) {
-					$zanswer->body_set("COMPLETE: ".$jobid);
-					$zanswer->wrap($this->serviceName);
-					if ($answer->retval !== NULL) {
-						$zanswer->push('PARAM-JSON: '. json_encode($answer->retval));
-					}
-					$this->log(sprintf("Job %s complete", $jobid), 'I');
-				} else {
-					$zanswer->body_set("FAIL: ".$jobid);
-					$zanswer->wrap($this->serviceName);
-					$this->log(sprintf("Job %s failed", $jobid), 'I');
-				}
-				} catch (Exception $e) {
-					$this->log($e->getMessage(), 'E');
-					$this->log(print_r($e->getTrace(),1), 'E');
-					$zanswer->body_set("FAIL: ".$jobid);
-					$zanswer->wrap($this->serviceName);
-				}
-				$zanswer->send();
-				//work may have taken longer than one HB interval,
-				//we should start timing new HBs from now
-				$this->hbAt = microtime(true) + HEARTBEAT_INTERVAL;
+				$this->sendAnswer($answer);
 			}
 			//communication with server, reset HB retries
         	$this->hbRetries   = HEARTBEAT_RETRIES;
@@ -252,8 +233,36 @@ class Zmws_Worker_Base {
 			//don't idle again until we get a job
 			$this->idleCount=-1;
 		}
-
 		return TRUE;
+	}
+
+	public function sendAnswer($answer, $header='COMPLETE') {
+		$jobid = $this->_jobidCurrent;
+		$zanswer = new Zmsg($this->_socketCurrent);
+		try {
+			//transform answer into zanswer
+			if ($answer->status) {
+				$zanswer->body_set($header.": ".$jobid);
+				$zanswer->wrap($this->serviceName);
+				if ($answer->retval !== NULL) {
+					$zanswer->push('PARAM-JSON: '. json_encode($answer->retval));
+				}
+				$this->log(sprintf("Job %s complete", $jobid), 'D');
+			} else {
+				$zanswer->body_set("FAIL: ".$jobid);
+				$zanswer->wrap($this->serviceName);
+				$this->log(sprintf("Job %s failed", $jobid), 'W');
+			}
+		} catch (Exception $e) {
+			$this->log($e->getMessage(), 'E');
+			$this->log(print_r($e->getTrace(),1), 'E');
+			$zanswer->body_set("FAIL: ".$jobid);
+			$zanswer->wrap($this->serviceName);
+		}
+		$zanswer->send();
+		//work may have taken longer than one HB interval,
+		//we should start timing new HBs from now
+		$this->hbAt = microtime(true) + HEARTBEAT_INTERVAL;
 	}
 
 	/**
