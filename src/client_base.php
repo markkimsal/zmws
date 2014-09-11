@@ -16,6 +16,16 @@ class Zmws_Client_Base {
 
 	public function __construct($host='localhost', $port=5555) {
 		$this->addServer($host, $port);
+
+		$this->_cliFlags();
+	}
+
+	public function _cliFlags() {
+		if( ! @include_once(dirname(__FILE__).'/clihelper.php') ){
+			return;
+		}
+//		$args = cli_args_parse();
+//		$this->dryRun   = cli_config_get($args, 'dry-run', $this->dryRun);
 	}
 
 	public function addServer($host='localhost', $port=5555) {
@@ -44,32 +54,38 @@ class Zmws_Client_Base {
 		}
 	}
 
-	public function task($sv, $param, $callback=NULL) {
+	public function task($sv, $param, $callback=NULL, $isbg=FALSE) {
 
-		if (!$this->frontend) { 
+		if (!$this->frontend) {
 			$this->frontendSocket();
-		} 
+		}
 		//$this->listTaskCb[$sv] = $callback;
 		$this->listCallbacks[$sv] = $callback;
 		@$this->listJobs[$sv]++;
 		$this->taskReq = new Zmsg($this->frontend);
+		$this->taskReq->isbg = $isbg;
 		$this->taskReq->body_set('JOB: SYNC-'.$sv);
 		$this->taskReq->push( 'PARAM-JSON: '.json_encode($param) );
 		return $this;
-	} 
+	}
+
+	public function bgtask($sv, $param, $callback=NULL) {
+		return $this->task($sv, $param, $callback, TRUE);
+	}
+
 
 	public function stream($sv, $param, $callback=NULL) {
 
-		if (!$this->frontend) { 
+		if (!$this->frontend) {
 			$this->frontendSocket();
-		} 
+		}
 		$this->listCallbacks[$sv] = $callback;
 		@$this->listJobs[$sv]++;
 		$this->streamReq = new Zmsg($this->frontend);
 		$this->streamReq->body_set('JOB: SYNC-'.$sv);
 		$this->streamReq->push( 'PARAM-JSON: '.json_encode($param) );
 		return $this;
-	} 
+	}
 
 	public function execute() {
 		if (is_object($this->streamReq)) {
@@ -78,6 +94,8 @@ class Zmws_Client_Base {
 		}
 		if (is_object($this->taskReq)) {
 			$this->taskReq->send();
+			if (@$this->taskReq->isbg)
+				return;
 			$this->taskReq = NULL;
 		}
 
@@ -102,7 +120,7 @@ class Zmws_Client_Base {
 			if ( isset($this->listCallbacks[$sv]) ) {
 				$callback = $this->listCallbacks[$sv];
 
-				if (is_callable($callback) && !is_array($callback)) { 
+				if (is_callable($callback) && !is_array($callback)) {
 					$callback($param, $status, $sv, $jobid);
 				}
 				if (is_array($callback)) {
@@ -115,7 +133,7 @@ class Zmws_Client_Base {
 			}
 			if ($status === 'COMPLETE') {
 				$this->listJobs[$sv]--;
-            } 
+			}
 
 			foreach ($this->listJobs as $sv =>$cnt) {
 				if ($cnt > 0) continue;
@@ -128,5 +146,5 @@ class Zmws_Client_Base {
 			}
 		}
 	}
-} 
+}
 
