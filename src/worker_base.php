@@ -1,7 +1,11 @@
 <?php
 include_once(dirname(__FILE__).'/zmsg.php');
-define ("HEARTBEAT_INTERVAL", 3); //sec
-define ("HEARTBEAT_RETRIES",  5); //server died after this many HB
+if (!defined("HEARTBEAT_MAXTRIES")) {
+	define("HEARTBEAT_MAXTRIES", 3); //  3-5 is reasonable
+}
+if (!defined("HEARTBEAT_INTERVAL")) {
+	define("HEARTBEAT_INTERVAL", 5); //  secs
+}
 
 /**
  * A worker performs a service

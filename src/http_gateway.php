@@ -33,8 +33,12 @@
 include "zmsg.php";
 include "clihelper.php";
 
-define("HEARTBEAT_MAXTRIES", 3); //  3-5 is reasonable
-define("HEARTBEAT_INTERVAL", 5); //  secs
+if (!defined("HEARTBEAT_MAXTRIES")) {
+	define("HEARTBEAT_MAXTRIES", 3); //  3-5 is reasonable
+}
+if (!defined("HEARTBEAT_INTERVAL")) {
+	define("HEARTBEAT_INTERVAL", 5); //  secs
+}
 
 $args = cli_args_parse();
 
