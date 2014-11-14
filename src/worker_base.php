@@ -52,7 +52,8 @@ class Zmws_Worker_Base {
 		$this->backendPort   = cli_config_get($args, 'backend-port', $this->backendPort);
 		$this->frontendPort  = cli_config_get($args, 'frontend-port', $this->frontendPort);
 		$this->serviceName   = cli_config_get($args, 'service-name', $this->serviceName);
-		$this->setIdentity(cli_config_get($args, array('zmqid', 'id'), $this->_identity));
+		//@DEPRECATED persistant IDs do not reconnect well on failure
+		//$this->setIdentity(cli_config_get($args, array('zmqid', 'id'), $this->_identity));
 		$this->log_level     = cli_config_get($args, array('log',   'log-level'), 'W');
 
 		$this->listBackendSrv    = explode(',', cli_config_get($args, array('backend-server', 'backend-servers'), implode(',',$this->listBackendSrv)));
@@ -74,6 +75,7 @@ class Zmws_Worker_Base {
 		}
 		$addrBackend = current($this->listBackendSrv);
 
+		$this->frontend   = NULL;
 		$this->frontend   = new ZMQSocket($this->context, ZMQ::SOCKET_DEALER);
 
 		//  Configure socket to not wait at close time
@@ -89,9 +91,11 @@ class Zmws_Worker_Base {
 		}
 		$addrBackend = current($this->listBackendSrv);
 
+		$this->backend   = NULL;
 		$this->backend   = new ZMQSocket($this->context, ZMQ::SOCKET_DEALER);
 
-		$this->backend->setSockOpt(ZMQ::SOCKOPT_IDENTITY, $this->getIdentity());
+		//@DEPRECATED persistant IDs do not reconnect well on failure
+		//$this->backend->setSockOpt(ZMQ::SOCKOPT_IDENTITY, $this->getIdentity());
 
 		//  Configure socket to not wait at close time
 		$this->backend->setSockOpt(ZMQ::SOCKOPT_LINGER, 0);
