@@ -33,10 +33,7 @@ $workerList = array(
 			'backend-port'=>'5556',
 
 			//without this, the inherited DEMO would be used
-			'service-name' => 'SLEEP',
-
-			//without this, a crash would leave unfinished jobs in limbo
-			'zmqid' => 'sleep_a'
+			'service-name' => 'SLEEP'
 		)
 	),
 	array(
@@ -49,10 +46,7 @@ $workerList = array(
 			'backend-port'=>'5556',
 
 			//without this, the inherited DEMO would be used
-			'service-name' => 'STR-REV',
-
-			//without this, a crash would leave unfinished jobs in limbo
-			'zmqid' => 'rev_a'
+			'service-name' => 'STR-REV'
 		)
 	)
 );
