@@ -99,7 +99,7 @@ class Zmws_Worker_Base {
 
 		//configure heartbeat
         $this->hbAt        = microtime(true) + HEARTBEAT_INTERVAL;
-        $this->hbRetries   = HEARTBEAT_RETRIES;
+        $this->hbRetries   = HEARTBEAT_MAXTRIES;
         $this->hbInterval  = HEARTBEAT_INTERVAL;
 
 		//connect
@@ -206,7 +206,7 @@ class Zmws_Worker_Base {
 				$this->sendAnswer($answer);
 			}
 			//communication with server, reset HB retries
-        	$this->hbRetries   = HEARTBEAT_RETRIES;
+			$this->hbRetries   = HEARTBEAT_MAXTRIES;
 
 			$this->log(sprintf ("hb up (%d).", $this->hbRetries), "D");
 		} else {
