@@ -47,15 +47,16 @@ class Zmws_Server {
 	public $backend;
 	public $news;
 
-	public $workerList     = array();
-	public $listOfJobs     = array();
+	public $workerList       = array();
+	public $listOfJobs       = array();
 
-	public $queueJobList   = array();
-	public $activeJobList  = array();
-	public $histJobList    = array();
+	public $queueJobList     = array();
+	public $activeJobList    = array();
+	public $activeWorkerList = array();
+	public $histJobList      = array();
 
-	public $hb_at          = 0;
-	public $log_level      = 'W';
+	public $hb_at            = 0;
+	public $log_level        = 'W';
 
 	public function __construct($client_port, $worker_port, $news_port) {
 		//  Prepare our context and sockets
@@ -92,7 +93,28 @@ class Zmws_Server {
 	}
 
 	/**
-	 * Find and remove a worker for a particular service.
+	 * return a copy of workerList that only has idle workers
+	 */
+	public function getIdleWorkerList() {
+		$listIdle = array();
+		foreach ($this->workerList as $_svc => $_worker) {
+			if (!array_key_exists($_svc, $listIdle)) {
+				$listIdle[$_svc] = array();
+			}
+
+			foreach ($_worker as $_wid => $_wstruct) {
+				if (in_array($_wid, $this->activeWorkerList)) {
+					continue;
+				}
+				$listIdle[$_svc][$_wid] =  $_wstruct;
+			}
+		}
+		return $listIdle;
+	}
+
+
+	/**
+	 * Find an available worker for a particular service.
 	 */
 	public function selectWorker($svc, $clear=true) {
 		reset($this->workerList);
@@ -103,16 +125,43 @@ class Zmws_Server {
 			return false;
 		}
 
-		$id = key($this->workerList[$svc]);
+		do  {
+			$wid = key($this->workerList[$svc]);
+			if (in_array($wid, $this->activeWorkerList)) {
+				next($this->workerList[$svc]);
+			} else {
+				break;
+			}
+		} while ($wid);
 
-		if ($clear) {
-			//$this->log(sprintf ("Dequeue worker %s [%s]", $id, $svc) , 'I' );
-			unset($this->workerList[$svc][$id]);
-		}
-		return $id;
+		return $wid;
 	}
 
-	/*
+	/**
+	 * put any active jobs with the given worker id back in queueJobList
+	 *
+	 * Only one job is assigned per worker, we can return after we found
+	 * one job.
+	 *
+	 * startJobs() adds these fields to a job definition
+	 *  $_j['worker'] = $wid;
+	 *  $_j['startedat'] = microtime(true);
+	 */
+	public function restartOrphanedJobs($wid) {
+
+		foreach($this->activeJobList as $jid => $_j) {
+			if ($_j['worker'] != $wid) {
+				continue;
+			}
+			unset($_j['worker']);
+			unset($_j['startedat']);
+			$this->queueJobList[$jid] = $_j;
+			unset ($this->activeJobList[$jid]);
+			return;
+		}
+	}
+
+	/**
 	 * Look for & kill expired workers
 	 */
 	public function purgeStaleWorkers() {
@@ -122,9 +171,8 @@ class Zmws_Server {
 			foreach($jlist as $id => $jdef) {
 				if(microtime(true) > $jdef['hb']) {
 					$this->log ( sprintf("purging stale worker %s, havent seen HB in %d seconds.",  $id, (HEARTBEAT_INTERVAL * HEARTBEAT_MAXTRIES) ), 'W');
-					unset($this->workerList[$serv][$id]);
-
-					//$this->activeJobList[$jid] = $_j;
+					$this->deleteWorker($id, $serv);
+					$this->restartOrphanedJobs($id);
 				}
 			}
 		}
@@ -168,11 +216,10 @@ class Zmws_Server {
 		}
 
 		if(microtime(true) > $this->hb_at) {
-			$list = $this->getWorkerList();
+			$list = $this->getIdleWorkerList();
 			//@printf (" %0.4f %0.4f %s", microtime(true), $this->hb_at, PHP_EOL);
 			foreach($list as $serv => $jlist) {
 				foreach($jlist as $id => $jdef) {
-
 					$this->log(sprintf ("sending HB to  %s (%s)", $id, $jdef['service']) , 'D' );
 					$zmsg = new Zmsg($this->backend);
 					$zmsg->body_set("HEARTBEAT");
@@ -222,6 +269,7 @@ class Zmws_Server {
 			$_j['worker'] = $wid;
 			$_j['startedat'] = microtime(true);
 			$this->activeJobList[$jid] = $_j;
+			$this->activeWorkerList[]  = $wid;
 			//remove from array
 			unset($this->queueJobList[$jid]);
 //			array_shift($this->queueJobList);
@@ -241,7 +289,6 @@ class Zmws_Server {
 
 		$identity      = $zmsg->address();
 		$binary        = $zmsg->unwrap();
-
 		$this->log( sprintf("zmsg parts %d", $zmsg->parts()), 'D' );
 		if($zmsg->parts() == 1) {
 			if($zmsg->body() == 'HEARTBEAT') {
@@ -267,6 +314,13 @@ class Zmws_Server {
 				$this->deleteWorker($identity, $service);
 				$this->appendWorker($identity, $service);
 			}
+
+			//protocol must ignore workers it thought were dead
+			if (!$this->isWorkerAlive($identity)) {
+				$this->log( sprintf("message from dead worker %s", $identity), 'W' );
+				return;
+			}
+
 			if( strtoupper(substr($zmsg->body(), 0, 4) == 'FAIL') ) {
 				$jobid = substr($zmsg->body(), 6);
 				$this->handleFinishJob($zmsg, $jobid, $identity, $service, FALSE, $retval);
@@ -279,6 +333,8 @@ class Zmws_Server {
 				$jobid = substr($zmsg->body(), 6);
 				$this->handleJobAnswer($zmsg, $jobid, $identity, $service, TRUE, $retval);
 			}
+			//protocol says "any communication other than DISCONNECT is to be taken as a heartbeat"
+			$this->refreshWorker($identity);
 		} else {
 			$this->log( sprintf ("got a response that might have a return value: (%d) parts", count($zmsg->parts())), 'I' );
 		}
@@ -352,36 +408,41 @@ class Zmws_Server {
 	 */
 	public function handleFinishJob($zmsg, $jobid, $identity, $service, $success=true, $retval=NULL) {
 
-			$_job = $this->activeJobList[$jobid];
+		$_job = $this->activeJobList[$jobid];
 
-			$answer = 'COMPLETE';
-			if ($success)
-				$this->log( sprintf ("JOB COMPLETE: %s %s, client id: @%s - took %0.4f sec", $_job['service'], $jobid, bin2hex($_job['clientid']), (microtime(true) - $_job['startedat'])), 'I' );
-			else {
-				$this->log( sprintf ("JOB FAILED: %s %s, client id: @%s - took %0.4f sec", $_job['service'], $jobid, bin2hex($_job['clientid']), (microtime(true) - $_job['startedat'])), 'I' );
-				$answer = 'FAIL';
-			}
+		$answer = 'COMPLETE';
+		if ($success)
+			$this->log( sprintf ("JOB COMPLETE: %s %s, client id: @%s - took %0.4f sec", $_job['service'], $jobid, bin2hex($_job['clientid']), (microtime(true) - $_job['startedat'])), 'I' );
+		else {
+			$this->log( sprintf ("JOB FAILED: %s %s, client id: @%s - took %0.4f sec", $_job['service'], $jobid, bin2hex($_job['clientid']), (microtime(true) - $_job['startedat'])), 'I' );
+			$answer = 'FAIL';
+		}
 
-			$_job['completedat'] = microtime(true);
-			unset($this->activeJobList[$jobid]);
-			$this->histJobList[] = $_job;
+		$_job['completedat'] = microtime(true);
+		unset($this->activeJobList[$jobid]);
+		$this->histJobList[] = $_job;
 
-			if (count($this->histJobList) > 100) {
-				array_shift($this->histJobList);
-			}
+		if (count($this->histJobList) > 100) {
+			array_shift($this->histJobList);
+		}
 
-			//if sync, send reply now
-			if ($_job['sync'] == TRUE) {
-				$zmsgReply = new Zmsg($this->frontend);
-				$zmsgReply->body_set($retval);
-				$zmsgReply->wrap($answer.": " .$_job['service']. " [".$jobid."]" );
-				$zmsgReply->wrap( null );
-				$zmsgReply->wrap( $_job['clientid'] );
-				$zmsgReply->send();
-			}
+		//if sync, send reply now
+		if ($_job['sync'] == TRUE) {
+			$zmsgReply = new Zmsg($this->frontend);
+			$zmsgReply->body_set($retval);
+			$zmsgReply->wrap($answer.": " .$_job['service']. " [".$jobid."]" );
+			$zmsgReply->wrap( null );
+			$zmsgReply->wrap( $_job['clientid'] );
+			$zmsgReply->send();
+		}
 
 //			$zmsg->set_socket($this->news)->send();
-			$this->appendWorker($identity, $service);
+		$this->appendWorker($identity, $service);
+
+		//remove from active worker list
+		if (($key = array_search($identity, $this->activeWorkerList)) !== FALSE) {
+			unset($this->activeWorkerList[$key]);
+		}
 	}
 
 
@@ -460,7 +521,10 @@ class Zmws_Server {
 		$this->seeJob($svc);
 
 		if(isset($this->workerList[$svc][$id])) {
-			$this->log( sprintf ("Duplicate worker identity %s", $id), 'E');
+			//this is normal because we're not going to remove
+			// workers that have jobs, they better start to respond in 
+			// 15 seconds ;)
+			$this->workerList[$svc][$id]['hb'] = microtime(true) + HEARTBEAT_INTERVAL * HEARTBEAT_MAXTRIES;
 		} else {
 			//$this->log( sprintf ("Append worker %s [%s]", $id, $svc) , 'D');
 			$this->workerList[$svc][$id] = array(
@@ -469,6 +533,15 @@ class Zmws_Server {
 				'workerid'=>$id 
 			);
 		}
+	}
+
+	public function isWorkerAlive($wid) {
+		foreach ($this->workerList as $_svc => $_list) {
+			foreach ($_list as $_wid => $_worker) {
+				if ($wid == $_wid) return TRUE;
+			}
+		}
+		return FALSE;
 	}
 
 	public function seeJob($service) {
