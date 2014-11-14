@@ -2,7 +2,7 @@
 
 $serverList = array(
 	array(
-		'file'=>'src/server.php',
+		'file'=>'src/server_run.php',
 		'name'=>'server',
 		'flags'=> array(
 			'log-level'=>'E',
