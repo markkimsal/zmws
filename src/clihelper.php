@@ -1,5 +1,11 @@
 <?php
 
+if (getenv("HEARTBEAT_MAXTRIES")) {
+	define("HEARTBEAT_MAXTRIES",getenv("HEARTBEAT_MAXTRIES") );
+}
+if (getenv("HEARTBEAT_INTERVAL")) {
+	define("HEARTBEAT_INTERVAL",getenv("HEARTBEAT_INTERVAL") );
+}
 
 function cli_args_parse() {
 	global $argv;

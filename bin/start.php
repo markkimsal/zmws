@@ -13,6 +13,12 @@ $configFile = cli_config_get($flags, 'c', 'etc/config.php');
 if (!@include($configFile)) {
 	die("Cannot read etc/config.php\n");
 }
+if (defined('HEARTBEAT_MAXTRIES')) {
+	putenv('HEARTBEAT_MAXTRIES='.HEARTBEAT_MAXTRIES);
+}
+if (defined('HEARTBEAT_INTERVAL')) {
+	putenv('HEARTBEAT_INTERVAL='.HEARTBEAT_INTERVAL);
+}
 
 if ($serverFlag || (!$serverFlag && !$workerFlag)) {
 	foreach ($serverList as $k => $v) {

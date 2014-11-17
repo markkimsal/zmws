@@ -1,6 +1,7 @@
 <?php
-
 include_once(dirname(__FILE__).'/zmsg.php');
+include_once(dirname(__FILE__).'/clihelper.php');
+
 class Zmws_Client_Base {
 
 	public $context          = NULL;

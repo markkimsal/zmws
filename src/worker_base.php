@@ -1,5 +1,7 @@
 <?php
 include_once(dirname(__FILE__).'/zmsg.php');
+include_once(dirname(__FILE__).'/clihelper.php');
+
 if (!defined("HEARTBEAT_MAXTRIES")) {
 	define("HEARTBEAT_MAXTRIES", 3); //  3-5 is reasonable
 }
@@ -44,10 +46,6 @@ class Zmws_Worker_Base {
 	}
 
 	public function _cliFlags() {
-		if( ! @include_once(dirname(__FILE__).'/clihelper.php') ){
-			return;
-		}
-
 		$args = cli_args_parse();
 		$this->backendPort   = cli_config_get($args, 'backend-port', $this->backendPort);
 		$this->frontendPort  = cli_config_get($args, 'frontend-port', $this->frontendPort);
