@@ -581,7 +581,8 @@ class Zmws_Server {
 				}
 			}
 		}
-		$this->log(sprintf ("worker %s sent HB, but not in list.", $id) , 'E' );
+
+		$this->log(sprintf ("worker @%s sent HB, but not in list.", bin2hex($id)) , 'E' );
 	}
 
 	public function cleanup() {
