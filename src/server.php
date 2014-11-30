@@ -616,4 +616,3 @@ class Zmws_Server {
 		printf("[%s] [%s] - %s\n", date('r'), $lvl, $msg);
 	}
 }
-
