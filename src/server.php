@@ -210,7 +210,11 @@ class Zmws_Server {
 					// FRONTEND
 					//  Now get next client request, route to next worker
 					$this->log( sprintf("Frontend IN %s", $zmsg), 'D' );
-					$this->handleFront($zmsg);
+					$client_id     = $zmsg->address();
+					$zmsgReply = $this->handleFront($zmsg, $client_id);
+					$zmsgReply->wrap( null );
+					$zmsgReply->wrap( $client_id );
+					$zmsgReply->send();
 				}
 			}
 		}
@@ -343,9 +347,35 @@ class Zmws_Server {
 	/**
 	 * Required to send a reply to the front-end since clients are REQ
 	 */
-	public function handleFront($zmsg) {
+	public function handleFront($zmsg, $client_id) {
 
-		$job = $zmsg->body();
+		//remove binary ID and blank frame from ROUTER messages
+		$client_id_bin = $zmsg->unwrap();
+		$protocol      = $zmsg->unwrap();
+		$msg_type      = $zmsg->unwrap();
+		$job           = $zmsg->unwrap();
+		$param         = $zmsg->unwrap();
+
+
+		if (intval($msg_type) != 0x01) {
+			$this->log( sprintf("Unknown message type [%s] from client  \"%s\"", $msg_type, $client_id), 'E');
+			$zmsgReply = new Zmsg($this->frontend);
+			$zmsgReply->body_set("FAIL: ".$job);
+			$zmsgReply->wrap($job);
+			$zmsgReply->wrap(0x03);
+			$zmsgReply->wrap("MDPC02");
+			return $zmsgReply;
+		}
+
+		if (intval($protocol) != 'MDPC02') {
+			$this->log( sprintf("Incorrect Protocol [%s] from client  \"%s\"", $msg_type, $client_id), 'E');
+			$zmsgReply = new Zmsg($this->frontend);
+			$zmsgReply->body_set("FAIL: ".$job);
+			$zmsgReply->wrap($job);
+			$zmsgReply->wrap(0x03);
+			$zmsgReply->wrap("MDPC02");
+			return $zmsgReply;
+		}
 
 		if ( substr($job, 0, 5) ==  'JOB: ') {
 			$job = substr($job, 5);
@@ -375,28 +405,18 @@ class Zmws_Server {
 			return;
 		}
 
-		//address unwraps and encodes binary uuids
-		$client_id = $zmsg->address();
-		$bin_client_id = $zmsg->unwrap();
-		$param         = $zmsg->unwrap();
-
 		if (!$this->haveSeenJob($job)) {
 			$this->log( sprintf("No worker can handle job \"%s\"", $job), 'E');
 			$zmsgReply = new Zmsg($this->frontend);
 			$zmsgReply->body_set("FAIL: ".$job);
-			$zmsgReply->wrap( null );
-			$zmsgReply->wrap( $client_id );
-			$zmsgReply->send();
-			return;
+			return $zmsgReply;
 		}
 
 		$jobid = $this->handleWorkRequest($job, $client_id, $param, $sync);
 		if (!$sync) {
 			$zmsgReply = new Zmsg($this->frontend);
 			$zmsgReply->body_set("JOB: ".$jobid. " ".$job);
-			$zmsgReply->wrap( null );
-			$zmsgReply->wrap( $client_id );
-			$zmsgReply->send();
+			return $zmsgReply;
 		}
 	}
 
