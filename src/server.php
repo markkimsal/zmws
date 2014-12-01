@@ -409,6 +409,9 @@ class Zmws_Server {
 			$this->log( sprintf("No worker can handle job \"%s\"", $job), 'E');
 			$zmsgReply = new Zmsg($this->frontend);
 			$zmsgReply->body_set("FAIL: ".$job);
+			$zmsgReply->wrap($job);
+			$zmsgReply->wrap(0x03);
+			$zmsgReply->wrap("MDPC02");
 			return $zmsgReply;
 		}
 
@@ -416,6 +419,9 @@ class Zmws_Server {
 		if (!$sync) {
 			$zmsgReply = new Zmsg($this->frontend);
 			$zmsgReply->body_set("JOB: ".$jobid. " ".$job);
+			$zmsgReply->wrap($job);
+			$zmsgReply->wrap(0x03);
+			$zmsgReply->wrap("MDPC02");
 			return $zmsgReply;
 		}
 	}
