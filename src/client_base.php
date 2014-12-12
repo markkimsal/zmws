@@ -7,6 +7,7 @@ class Zmws_Client_Base {
 	public $context          = NULL;
 	public $frontend         = NULL;
 	public $_identity        = '';
+	public $log_level        = 'W';
 
 	protected $listFeSrv         = array();
 	protected $listCallbacks     = array();
@@ -146,6 +147,33 @@ class Zmws_Client_Base {
 				break;
 			}
 		}
+	}
+
+	/**
+	 * Always log E
+	 * E is error
+	 * W is error
+	 * I is info
+	 * D is debug
+	 */
+	public function log($msg, $lvl='W') {
+		if ($this->log_level == 'E') {
+			if ($lvl == 'W') return;
+			if ($lvl == 'I') return;
+			if ($lvl == 'D') return;
+		}
+		if ($this->log_level == 'W') {
+			if ($lvl == 'I') return;
+			if ($lvl == 'D') return;
+		}
+		if ($this->log_level == 'I') {
+			if ($lvl == 'D') return;
+		}
+		if ($this->log_level == 'D') {
+			//always
+		}
+
+		printf("[%s] [%s] - %s\n", date('r'), $lvl, $msg);
 	}
 }
 
