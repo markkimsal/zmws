@@ -92,8 +92,11 @@ class Zmws_Worker_Base {
 		$this->backend   = NULL;
 		$this->backend   = new ZMQSocket($this->context, ZMQ::SOCKET_DEALER);
 
-		//@DEPRECATED persistant IDs do not reconnect well on failure
-		//$this->backend->setSockOpt(ZMQ::SOCKOPT_IDENTITY, $this->getIdentity());
+		//create a new random identity each connect
+		// there's no way to retrieve your ZMQ identity if you let the
+		// zmq library create one.
+		$this->_identity = '';
+		$this->backend->setSockOpt(ZMQ::SOCKOPT_IDENTITY, $this->getIdentity());
 
 		//  Configure socket to not wait at close time
 		$this->backend->setSockOpt(ZMQ::SOCKOPT_LINGER, 0);
@@ -111,7 +114,7 @@ class Zmws_Worker_Base {
 		$this->log("Worker connecting to ".$addrBackend." with port: ".$port, "I");
 		$this->backend->connect("tcp://".$addrBackend.":".$port);
 
-		$this->log("Worker startup @".date('r'), "I");
+		$this->log("Worker startup id:".$this->getIdentity()." @".date('r'), "I");
 		$this->log_level = $oldlog;
 	}
 
