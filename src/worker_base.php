@@ -191,7 +191,12 @@ class Zmws_Worker_Base {
 
 				//workers can return TRUE/FALSE, or an object
 				// with a status and a return value
-				$answer = $this->work($jobid, $p);
+				try {
+					$answer = $this->work($jobid, $p);
+				} catch (Exception $e) {
+					$answer = new Zmws_Worker_Answer();
+					$answer->status = FALSE;
+				}
 				if (!is_object($answer)) {
 					$x = new Zmws_Worker_Answer();
 					if ($answer !== TRUE && $answer !== FALSE) {
