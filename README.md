@@ -163,3 +163,9 @@ To access the sleep worker, simply go to http://localhost:5580/SLEEP .
 You can launch the string reverse  worker one of two ways: either asynchronously or synchronously.  In asynchronous mode (the default) you will not receive the value passed back by the worker.  In this example that is not very useful, but not all workers need to respod to the client who started them.  To start the worker asynchronously, simply go to http://localhost:5580/STR-REV?str=Hello,+world .
 
 To launch the worker as a synchronous job, simply prepend SYNC- to the job name: http://localhost:5580/SYNC-STR-REV?str=Hello,+world
+
+Similar Projects
+=====
+Phorever https://github.com/dcousineau/phorever
+
+GearMan  http://gearman.org/
