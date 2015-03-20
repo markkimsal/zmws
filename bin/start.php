@@ -58,7 +58,7 @@ function restartServer($name, $file, $flags) {
 		}
 	}
 
-	exec('php -d extension=zmq.so '.$file.' '.$option.'  >> logs/'.$name.'.txt 2>&1 & echo $!', $output, $ret);
+	exec('php '.$file.' '.$option.'  >> logs/'.$name.'.txt 2>&1 & echo $!', $output, $ret);
 	$pid = $output[0];
 	`echo '$pid' > run/$name.pid`;
 	echo $name." started ($pid)\n";
