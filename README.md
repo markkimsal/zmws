@@ -25,6 +25,8 @@ Majordomo Pattern
 This implementation is very similar to the majordomo protocol detailed here: http://rfc.zeromq.org/spec:7
 One difference is that job requests are *asynchronous* by default.  Synchronous jobs can be requested by prefixing the service name with "SYNC-".
 
+The Majordomo Protocol version 0.2 has support for partial replies from a worker.  Version 2.0.0 of this project aims to implement the MDP/0.2 standard.  http://rfc.zeromq.org/spec:18
+
 
 Installation
 ====
