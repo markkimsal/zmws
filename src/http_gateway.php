@@ -163,8 +163,16 @@ class Zmws_Gateway {
 			}
 
 			if (is_object($reply)) {
+				//this is usually the PARAM part
 				$response = $reply->body();
 				if ($reply->parts() > 1) {
+					//burn off MDPC02 version
+					$reply->unwrap();
+					//burn off 0x03 message type (3 is final)
+					$reply->unwrap();
+					//burn off JOB job name
+					$reply->unwrap();
+					//add COMPLETE or FAIL message
 					$response .= PHP_EOL.$reply->unwrap();
 				}
 			} else {
