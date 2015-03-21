@@ -161,9 +161,18 @@ class Zmws_Gateway {
 			} else {
 				socket_write ($this->clientList[$_idx], "HTTP 501 INTERAL SERVER ERROR\n");
 			}
+
 			if (is_object($reply)) {
+				//this is usually the PARAM part
 				$response = $reply->body();
 				if ($reply->parts() > 1) {
+					//burn off MDPC02 version
+					$reply->unwrap();
+					//burn off 0x03 message type (3 is final)
+					$reply->unwrap();
+					//burn off JOB job name
+					$reply->unwrap();
+					//add COMPLETE or FAIL message
 					$response .= PHP_EOL.$reply->unwrap();
 				}
 			} else {
@@ -358,6 +367,7 @@ class Zmws_Gateway {
 class Zmws_Gateway_Client {
 
 	public $frontend_port = '5554';
+	public $protocol      = 'MDPC02';
 	public $log_level     = 'E';
 
 	public function __construct($frontend_port='') {
@@ -396,11 +406,14 @@ class Zmws_Gateway_Client {
 			return 'FNF';
 		}
 		$request = new Zmsg($this->frontend);
-		$request->body_set('JOB: '.$job);
+		$request->body_set($job);
+
 		if (count((array)$param)) {
 			$this->log('Sending param '.json_encode($param).'  to ZMQ', 'D');
 			$request->push('PARAM-JSON: '. json_encode($param));
 		}
+		$request->push(0x01);
+		$request->push('MDPC02');
 
 		$this->log('Forwarding request to ZMQ for job: '. $job, 'I');
 		$this->log('Frontend OUT '.$request, 'D');
