@@ -212,9 +212,11 @@ class Zmws_Server {
 					$this->log( sprintf("Frontend IN %s", $zmsg), 'D' );
 					$client_id     = $zmsg->address();
 					$zmsgReply = $this->handleFront($zmsg, $client_id);
-					$zmsgReply->wrap( null );
-					$zmsgReply->wrap( $client_id );
-					$zmsgReply->send();
+					if (is_object($zmsgReply)) {
+						$zmsgReply->wrap( null );
+						$zmsgReply->wrap( $client_id );
+						$zmsgReply->send();
+					}
 				}
 			}
 		}
@@ -224,6 +226,11 @@ class Zmws_Server {
 			//@printf (" %0.4f %0.4f %s", microtime(true), $this->hb_at, PHP_EOL);
 			foreach($list as $serv => $jlist) {
 				foreach($jlist as $id => $jdef) {
+
+					if($id[0] == '@' && strlen($id) == 33) {
+						$this->log(sprintf ("id is address to  %s (%s)", $id, $jdef['service']) , 'D' );
+					}
+
 					$this->log(sprintf ("sending HB to  %s (%s)", $id, $jdef['service']) , 'D' );
 					$zmsg = new Zmsg($this->backend);
 					$zmsg->body_set("HEARTBEAT");
@@ -247,6 +254,7 @@ class Zmws_Server {
 
 		if (!count($this->queueJobList)) return;
 		reset($this->queueJobList);
+
 		do {
 			$_j = current($this->queueJobList);
 			$jid = key($this->queueJobList);
@@ -291,8 +299,11 @@ class Zmws_Server {
 	 */
 	public function handleBack($zmsg) {
 
-		$identity      = $zmsg->address();
-		$binary        = $zmsg->unwrap();
+		$identityBin = $zmsg->address();
+		$binary      = $zmsg->unwrap();
+		//$identity    = $zmsg->s_encode_uuid($identityBin);
+		$identity    = $identityBin;
+
 		$this->log( sprintf("zmsg parts %d", $zmsg->parts()), 'D' );
 		if($zmsg->parts() == 1) {
 			if($zmsg->body() == 'HEARTBEAT') {
@@ -353,9 +364,8 @@ class Zmws_Server {
 		$client_id_bin = $zmsg->unwrap();
 		$protocol      = $zmsg->unwrap();
 		$msg_type      = $zmsg->unwrap();
-		$job           = $zmsg->unwrap();
 		$param         = $zmsg->unwrap();
-
+		$job           = $zmsg->unwrap();
 
 		if (intval($msg_type) != 0x01) {
 			$this->log( sprintf("Unknown message type [%s] from client  \"%s\"", $msg_type, $client_id), 'E');
@@ -457,6 +467,11 @@ class Zmws_Server {
 			$zmsgReply = new Zmsg($this->frontend);
 			$zmsgReply->body_set($retval);
 			$zmsgReply->wrap($answer.": " .$_job['service']. " [".$jobid."]" );
+			$zmsgReply->wrap($_job['service']);
+			$zmsgReply->wrap(0x03);
+			$zmsgReply->wrap("MDPC02");
+
+			//wrap with address
 			$zmsgReply->wrap( null );
 			$zmsgReply->wrap( $_job['clientid'] );
 			$zmsgReply->send();
