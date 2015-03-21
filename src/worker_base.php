@@ -92,8 +92,11 @@ class Zmws_Worker_Base {
 		$this->backend   = NULL;
 		$this->backend   = new ZMQSocket($this->context, ZMQ::SOCKET_DEALER);
 
-		//@DEPRECATED persistant IDs do not reconnect well on failure
-		//$this->backend->setSockOpt(ZMQ::SOCKOPT_IDENTITY, $this->getIdentity());
+		//Reconnects with the same identity are ignored by ZMQ sockets.
+		//(unless router handover sockopt is used)
+		//We must reset our id each time we want to reconnect.
+		$this->setIdentity('');
+		$this->backend->setSockOpt(ZMQ::SOCKOPT_IDENTITY, $this->getIdentity());
 
 		//  Configure socket to not wait at close time
 		$this->backend->setSockOpt(ZMQ::SOCKOPT_LINGER, 0);
