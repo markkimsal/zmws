@@ -147,7 +147,8 @@ class Zmws_Worker_Base {
 		$poll = new ZMQPoll();
 		$poll->add($this->backend, ZMQ::POLL_IN);
 
-		$events = $poll->poll($read, $write, $this->hbInterval * 1000 );
+		//$events = $poll->poll($read, $write, $this->hbInterval * 1000 );
+		$events = $poll->poll($read, $write, 2000 );
 
 		$this->log("poll done.", "D");
 		if($events > 0) {

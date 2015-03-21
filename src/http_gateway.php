@@ -103,7 +103,7 @@ class Zmws_Gateway {
 		$read   = array_merge(array($this->sock), $this->clientList);
 		$write  = NULL;
 		$except = $this->clientList;
-		$num_changed_sockets = socket_select($read, $write, $except, 30);
+		$num_changed_sockets = socket_select($read, $write, $except, 0, 20000);
 
 		//$read now contains sockets that have a changed status
 		if (in_array($this->sock, $read)) {

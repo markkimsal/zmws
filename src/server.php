@@ -193,7 +193,8 @@ class Zmws_Server {
 		//we can't debug without workers if the above
 		// "optimization" is in place.
 		$poll->add($this->frontend, ZMQ::POLL_IN);
-		$events = $poll->poll($read, $write, HEARTBEAT_INTERVAL * 1000 );
+		//$events = $poll->poll($read, $write, HEARTBEAT_INTERVAL * 5000 );
+		$events = $poll->poll($read, $write, 2000 );
 
 		if($events > 0) {
 
@@ -286,8 +287,8 @@ class Zmws_Server {
 			unset($this->queueJobList[$jid]);
 //			array_shift($this->queueJobList);
 			//
-			//started a job? let's yeild to the network
-			return;
+			//started a job? let's yield to the network
+//			return;
 
 		} while (next($this->queueJobList));
 		//$this->log ( sprintf("No jobs started, queue size is : %d",  count($this->queueJobList) ), 'W');
