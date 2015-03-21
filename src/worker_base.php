@@ -92,10 +92,13 @@ class Zmws_Worker_Base {
 		$this->backend   = NULL;
 		$this->backend   = new ZMQSocket($this->context, ZMQ::SOCKET_DEALER);
 
-		//create a new random identity each connect
+		//Reconnects with the same identity are ignored by ZMQ sockets.
+		//(unless router handover sockopt is used)
+		//We must reset our id each time we want to reconnect.
+
 		// there's no way to retrieve your ZMQ identity if you let the
 		// zmq library create one.
-		$this->_identity = '';
+		$this->setIdentity('');
 		$this->backend->setSockOpt(ZMQ::SOCKOPT_IDENTITY, $this->getIdentity());
 
 		//  Configure socket to not wait at close time
