@@ -366,7 +366,7 @@ class Zmws_Gateway {
 
 class Zmws_Gateway_Client {
 
-	public $frontend_port = '5554';
+	public $frontend_port = '5555';
 	public $protocol      = 'MDPC02';
 	public $log_level     = 'E';
 
