@@ -147,8 +147,8 @@ class Zmws_Worker_Base {
 		$poll = new ZMQPoll();
 		$poll->add($this->backend, ZMQ::POLL_IN);
 
-		//$events = $poll->poll($read, $write, $this->hbInterval * 1000 );
-		$events = $poll->poll($read, $write, 2000 );
+		$events = $poll->poll($read, $write, $this->hbInterval * 1000 );
+		//$events = $poll->poll($read, $write, 2000 );
 
 		$this->log("poll done.", "D");
 		if($events > 0) {
@@ -163,6 +163,7 @@ class Zmws_Worker_Base {
 					//any comms with server resets HB retries
 					//but we don't want to treat this message 
 					// as a job, so continue
+					$this->hbRetries   = HEARTBEAT_MAXTRIES;
 					continue;
 				}
 
