@@ -221,7 +221,6 @@ class Zmws_Server {
 				}
 			}
 		}
-
 		if(microtime(true) > $this->hb_at) {
 			$list = $this->getIdleWorkerList();
 			//@printf (" %0.4f %0.4f %s", microtime(true), $this->hb_at, PHP_EOL);
@@ -360,13 +359,16 @@ class Zmws_Server {
 	 * Required to send a reply to the front-end since clients are REQ
 	 */
 	public function handleFront($zmsg, $client_id) {
-
 		//remove binary ID and blank frame from ROUTER messages
 		$client_id_bin = $zmsg->unwrap();
 		$protocol      = $zmsg->unwrap();
 		$msg_type      = $zmsg->unwrap();
 		$param         = $zmsg->unwrap();
 		$job           = $zmsg->unwrap();
+		//param is optional
+		if ($job == '') {
+			$job = $param;
+		}
 
 		if (intval($msg_type) != 0x01) {
 			$this->log( sprintf("Unknown message type [%s] from client  \"%s\"", $msg_type, $client_id), 'E');
