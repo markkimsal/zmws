@@ -155,11 +155,11 @@ class Zmws_Gateway {
 			socket_write ($this->clientList[$_idx], "Thanks, goodbye.\n");
 */
 			if (strpos($reply, 'FNF') !== FALSE) {
-				socket_write ($this->clientList[$_idx], "HTTP 404 NOT FOUND\n");
+				socket_write ($this->clientList[$_idx], "HTTP/1.0 404 NOT FOUND\n");
 			} elseif ($reply != '') {
-				socket_write ($this->clientList[$_idx], "HTTP 200 OK\n");
+				socket_write ($this->clientList[$_idx], "HTTP/1.0 200 OK\n");
 			} else {
-				socket_write ($this->clientList[$_idx], "HTTP 501 INTERAL SERVER ERROR\n");
+				socket_write ($this->clientList[$_idx], "HTTP/1.0 501 INTERAL SERVER ERROR\n");
 			}
 
 			if (is_object($reply)) {
