@@ -17,10 +17,5 @@ $zserver->log("Server startup @".date('r'), 'I');
 $zserver->log_level = $log_level;
 
 
-while($zserver->poll() ) {
-	//poll() returns false when it wants to quit
-}
-
-//cleanup sockets
-$zserver->cleanup();
+$zserver->run();
 

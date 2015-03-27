@@ -57,6 +57,7 @@ class Zmws_Server {
 
 	public $hb_at            = 0;
 	public $log_level        = 'W';
+	public $running          = FALSE;
 
 	public function __construct($client_port, $worker_port, $news_port) {
 		//  Prepare our context and sockets
@@ -178,21 +179,25 @@ class Zmws_Server {
 		}
 	}
 
+	/**
+	 * set $this->running = FALSE to exit
+	 */
+	public function run() {
+		$this->running = TRUE;
+		while ($this->running) {
+			$this->poll();
+			$this->checkTimers();
+			$this->startJobs();
+		}
+		$zserver->cleanup();
+	}
+
 	public function poll() {
 		$read = $write = array();
 		$poll = new ZMQPoll();
 		$poll->add($this->backend, ZMQ::POLL_IN);
-
-//		$list = $this->getWorkerList();
-		//  Poll frontend only if we have available workers
-//		if( count($list)) {
-//			printf ("D: inside poll %s", PHP_EOL);
-//			$poll->add($this->frontend, ZMQ::POLL_IN);
-//		}
-
-		//we can't debug without workers if the above
-		// "optimization" is in place.
 		$poll->add($this->frontend, ZMQ::POLL_IN);
+
 		//$events = $poll->poll($read, $write, HEARTBEAT_INTERVAL * 5000 );
 		$events = $poll->poll($read, $write, 2000 );
 
@@ -221,30 +226,33 @@ class Zmws_Server {
 				}
 			}
 		}
+	}
+
+	public function checkTimers() {
 		if(microtime(true) > $this->hb_at) {
-			$list = $this->getIdleWorkerList();
-			//@printf (" %0.4f %0.4f %s", microtime(true), $this->hb_at, PHP_EOL);
-			foreach($list as $serv => $jlist) {
-				foreach($jlist as $id => $jdef) {
-
-					if($id[0] == '@' && strlen($id) == 33) {
-						$this->log(sprintf ("id is address to  %s (%s)", $id, $jdef['service']) , 'D' );
-					}
-
-					$this->log(sprintf ("sending HB to  %s (%s)", $id, $jdef['service']) , 'D' );
-					$zmsg = new Zmsg($this->backend);
-					$zmsg->body_set("HEARTBEAT");
-					$zmsg->wrap($id, NULL);
-					$zmsg->send();
-				}
-			}
+			$this->onSendHeartbeat();
 			$this->hb_at = microtime(true) + HEARTBEAT_INTERVAL;
-
 			$this->purgeStaleWorkers();
 		}
-		$this->startJobs();
+	}
 
-		return TRUE;
+	public function onSendHeartbeat() {
+		$list = $this->getIdleWorkerList();
+		//@printf (" %0.4f %0.4f %s", microtime(true), $this->hb_at, PHP_EOL);
+		foreach($list as $serv => $jlist) {
+			foreach($jlist as $id => $jdef) {
+
+				if($id[0] == '@' && strlen($id) == 33) {
+					$this->log(sprintf ("id is address to  %s (%s)", $id, $jdef['service']) , 'D' );
+				}
+
+				$this->log(sprintf ("sending HB to  %s (%s)", $id, $jdef['service']) , 'D' );
+				$zmsg = new Zmsg($this->backend);
+				$zmsg->body_set("HEARTBEAT");
+				$zmsg->wrap($id, NULL);
+				$zmsg->send();
+			}
+		}
 	}
 
 	/**
