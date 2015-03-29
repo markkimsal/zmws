@@ -19,6 +19,7 @@
  * is furnished to do so, subject to the following conditions:
  *
  * The above copyright notice and this permission notice shall be included in
+Sat Mar 28 22:04:18 EDT 2015
  * all copies or substantial portions of the Software.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -192,6 +193,11 @@ class Zmws_Server {
 		$zserver->cleanup();
 	}
 
+	/**
+	 * Poll frontend and backend sockets for 2000ms
+	 * Frontend socket messages call handleFront
+	 * Backend socket messages call handleBack
+	 */
 	public function poll() {
 		$read = $write = array();
 		$poll = new ZMQPoll();
