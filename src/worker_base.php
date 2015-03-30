@@ -90,7 +90,9 @@ class Zmws_Worker_Base {
 	public function ready() {
 		$zready = new Zmsg($this->backend);
 		$zready->body_set('READY');
-		$zready->wrap($this->serviceName);
+		$zready->push($this->serviceName);
+		$zready->push(0x03);
+		$zready->push("MDPC02");
 		$zready->send();
 	}
 
@@ -185,12 +187,18 @@ class Zmws_Worker_Base {
 		return $this->_identity;
 	}
 
-	public function loop() {
+	public function run() {
 		$running = TRUE;
 		while ($running) {
 			$this->poll();
 			$this->timers();
 		}
+	}
+
+	public function loop() {
+		$this->poll();
+		$this->timers();
+		return TRUE;
 	}
 
 	public function poll() {
@@ -207,8 +215,7 @@ class Zmws_Worker_Base {
 				$this->_socketCurrent = $socket;
 				$zmsg = new Zmsg($socket);
 				$zmsg->recv();
-
-				$jobid     = $zmsg->body();
+				$jobid         = $zmsg->body();
 
 				if ($jobid == 'HEARTBEAT') {
 					//any comms with server resets HB retries
@@ -268,22 +275,27 @@ class Zmws_Worker_Base {
 			//transform answer into zanswer
 			if ($answer->status) {
 				$zanswer->body_set($header.": ".$jobid);
-				$zanswer->wrap($this->serviceName);
 				if ($answer->retval !== NULL) {
 					$zanswer->push('PARAM-JSON: '. json_encode($answer->retval));
 				}
 				$this->log(sprintf("Job %s complete", $jobid), 'D');
 			} else {
 				$zanswer->body_set("FAIL: ".$jobid);
-				$zanswer->wrap($this->serviceName);
 				$this->log(sprintf("Job %s failed", $jobid), 'W');
 			}
 		} catch (Exception $e) {
 			$this->log($e->getMessage(), 'E');
 			$this->log(print_r($e->getTrace(),1), 'E');
 			$zanswer->body_set("FAIL: ".$jobid);
-			$zanswer->wrap($this->serviceName);
 		}
+
+		$zanswer->push($this->serviceName);
+		if ($header == 'PARTIAL') {
+			$zanswer->wrap(0x02);
+		} else {
+			$zanswer->wrap(0x03);
+		}
+		$zanswer->push("MDPC02");
 		$zanswer->send();
 		//work may have taken longer than one HB interval,
 		//we should start timing new HBs from now
@@ -311,16 +323,29 @@ class Zmws_Worker_Base {
 	}
 
 	public function onMessage($body, $zmsg) {
-		$client_id = $zmsg->address();
-		//this is just to remove the address and null to
-		// test for sizes (params)
-		$bin_client_id = $zmsg->unwrap();
+//		$client_id     = $zmsg->address();
+//		$body           = $zmsg->body();
+		//this is just to remove the address and null frames
+		$client_id_bin = $zmsg->unwrap();
+
+		$protocol      = $zmsg->unwrap();
+		$msg_type      = $zmsg->unwrap();
+		$param         = $zmsg->unwrap();
+
+		if ($protocol != 'MDPC02') {
+			$this->log( sprintf("Incorrect Protocol [%s] from client  \"%s\"", $msg_type, $client_id), 'E');
+			$zmsgReply = new Zmsg($this->frontend);
+			$zmsgReply->body_set("FAIL: ".$body);
+			$zmsgReply->wrap($body);
+			$zmsgReply->wrap(0x03);
+			$zmsgReply->wrap("MDPC02");
+			return $zmsgReply;
+		}
 
 		$p = (object)array();
 		//params
 		//id, null, params, body
-		if ($zmsg->parts() == 2) {
-			$param = $zmsg->unwrap();
+		if ($param != '') {
 			if (strpos($param, 'PARAM') !== FALSE) {
 				list($k, $v) = explode(': ', $param, 2);
 				if (strpos($k, 'JSON') !== FALSE) {

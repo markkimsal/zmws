@@ -283,12 +283,14 @@ class Zmws_Server {
 			$this->log( sprintf("Starting job %s, [%s%s%s] to %s, for client: @%s  Queue size %d",  $_j['service'], ($_j['sync'])? 'SYNC ':'', (strlen($_j['param']))?'PARAM ':'', $jid, $wid, bin2hex($_j['clientid']), count($this->queueJobList)), 'I');
 			$zmsg = new Zmsg($this->backend);
 			$zmsg->body_set('JOB: '.$jid);
-			$zmsg->wrap( $_j['param'] );
-			$zmsg->wrap( null );
-			$zmsg->wrap( $_j['clientid'] );
-			$zmsg->wrap( $wid );
+			$zmsg->push( $_j['param'] );
 
-			$this->log( sprintf("Backend OUT %s", $zmsg), 'D' );
+			$zmsg->push(0x01);
+			$zmsg->push("MDPC02");
+			$zmsg->push( null );
+			$zmsg->push( $wid );
+
+			$this->log( sprintf("Backend OUT %s", $zmsg), 'E' );
 
 			$zmsg->send();
 
@@ -313,60 +315,54 @@ class Zmws_Server {
 	 */
 	public function handleBack($zmsg) {
 
-		$identityBin = $zmsg->address();
-		$binary      = $zmsg->unwrap();
-		//$identity    = $zmsg->s_encode_uuid($identityBin);
-		$identity    = $identityBin;
+		$body          = $zmsg->body();
+		//remove binary ID and blank frame from ROUTER messages
+		$client_id_bin = $zmsg->unwrap();
+		$protocol      = $zmsg->unwrap();
+		$msg_type      = $zmsg->unwrap();
+		$service       = $zmsg->unwrap();
+		$param         = $zmsg->unwrap();
 
-		$this->log( sprintf("zmsg parts %d", $zmsg->parts()), 'D' );
-		if($zmsg->parts() == 1) {
-			if($zmsg->body() == 'HEARTBEAT') {
-				$this->log( sprintf("HB from %s", $identity), 'D' );
-				$this->refreshWorker($identity);
-			}
+		$identity      = $client_id_bin;
+
+		if($body == 'HEARTBEAT') {
+			$this->log( sprintf("HB from %s", $identity), 'D' );
+			$this->refreshWorker($identity);
 			return;
 		}
 
-		//  Return reply to client if it's not a control message
-		if($zmsg->parts() > 1) {
-			$retval = NULL;
-			if ($zmsg->parts() == 2) {
-				$service       = $zmsg->unwrap();
-			}
-			//do we have a return value?
-			if ($zmsg->parts() == 3) {
-				$retval        = $zmsg->unwrap();
-				$service       = $zmsg->unwrap();
-			}
-			if( substr($zmsg->address(), 0, 5) == "READY") {
-				$this->log(sprintf ("ready %s job:%s", $identity, $service), 'I');
-				$this->deleteWorker($identity, $service);
-				$this->appendWorker($identity, $service);
-			}
-
-			//protocol must ignore workers it thought were dead
-			if (!$this->isWorkerAlive($identity)) {
-				$this->log( sprintf("message from dead worker %s", $identity), 'W' );
-				return;
-			}
-
-			if( strtoupper(substr($zmsg->body(), 0, 4) == 'FAIL') ) {
-				$jobid = substr($zmsg->body(), 6);
-				$this->handleFinishJob($zmsg, $jobid, $identity, $service, FALSE, $retval);
-			}
-			if( strtoupper(substr($zmsg->body(), 0, 8) == 'COMPLETE') ) {
-				$jobid = substr($zmsg->body(), 10);
-				$this->handleFinishJob($zmsg, $jobid, $identity, $service, TRUE, $retval);
-			}
-			if( strtoupper(substr($zmsg->body(), 0, 4) == 'CONT') ) {
-				$jobid = substr($zmsg->body(), 6);
-				$this->handleJobAnswer($zmsg, $jobid, $identity, $service, TRUE, $retval);
-			}
-			//protocol says "any communication other than DISCONNECT is to be taken as a heartbeat"
-			$this->refreshWorker($identity);
-		} else {
-			$this->log( sprintf ("got a response that might have a return value: (%d) parts", count($zmsg->parts())), 'I' );
+		$retval = NULL;
+		//param is the last unwrap, could be COMPLETE: JOB [JOB-ID]
+		// could be second to last frame, PARAM-JSON: {key: "val"}
+		if( substr($param, 0, 5) == "PARAM" ) {
+			$retval = $param;
 		}
+		if( substr($body, 0, 5) == "READY") {
+			$this->log(sprintf ("ready %s job:%s", $identity, $service), 'I');
+			$this->deleteWorker($identity, $service);
+			$this->appendWorker($identity, $service);
+		}
+
+		//protocol must ignore workers it thought were dead
+		if (!$this->isWorkerAlive($identity)) {
+			$this->log( sprintf("message from dead worker %s", $identity), 'W' );
+			return;
+		}
+
+		if( strtoupper(substr($body, 0, 4) == 'FAIL') ) {
+			$jobid = substr($body, 6);
+			$this->handleFinishJob($zmsg, $jobid, $identity, $service, FALSE, $retval);
+		}
+		if( strtoupper(substr($body, 0, 8) == 'COMPLETE') ) {
+			$jobid = substr($body, 10);
+			$this->handleFinishJob($zmsg, $jobid, $identity, $service, TRUE, $retval);
+		}
+		if( strtoupper(substr($body, 0, 4) == 'CONT') ) {
+			$jobid = substr($body, 6);
+			$this->handleJobAnswer($zmsg, $jobid, $identity, $service, TRUE, $retval);
+		}
+		//protocol says "any communication other than DISCONNECT is to be taken as a heartbeat"
+		$this->refreshWorker($identity);
 	}
 
 	/**
@@ -394,7 +390,7 @@ class Zmws_Server {
 			return $zmsgReply;
 		}
 
-		if (intval($protocol) != 'MDPC02') {
+		if ($protocol != 'MDPC02') {
 			$this->log( sprintf("Incorrect Protocol [%s] from client  \"%s\"", $msg_type, $client_id), 'E');
 			$zmsgReply = new Zmsg($this->frontend);
 			$zmsgReply->body_set("FAIL: ".$job);
