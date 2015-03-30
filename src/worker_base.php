@@ -185,8 +185,15 @@ class Zmws_Worker_Base {
 		return $this->_identity;
 	}
 
-
 	public function loop() {
+		$running = TRUE;
+		while ($running) {
+			$this->poll();
+			$this->timers();
+		}
+	}
+
+	public function poll() {
 		$read = $write = array();
 		$poll = new ZMQPoll();
 		$poll->add($this->backend, ZMQ::POLL_IN);
@@ -237,7 +244,9 @@ class Zmws_Worker_Base {
 				$this->ready();
 			}
 		}
+	}
 
+	public function timers() {
 		if(microtime(true) > $this->hbAt) {
 			$this->heartbeat();
 			if ($this->idleCount > -1) {
@@ -250,7 +259,6 @@ class Zmws_Worker_Base {
 			//don't idle again until we get a job
 			$this->idleCount=-1;
 		}
-		return TRUE;
 	}
 
 	public function sendAnswer($answer, $header='COMPLETE') {
