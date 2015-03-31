@@ -225,7 +225,11 @@ class Zmws_Worker_Base {
 					continue;
 				}
 
-				$this->onMessage($jobid, $zmsg);
+				$reply = $this->onMessage($jobid, $zmsg);
+				$reply->send();
+				//work may have taken longer than one HB interval,
+				//we should start timing new HBs from now
+				$this->hbAt = microtime(true) + HEARTBEAT_INTERVAL;
 			}
 			//communication with server, reset HB retries
 			$this->hbRetries   = HEARTBEAT_MAXTRIES;
@@ -268,9 +272,12 @@ class Zmws_Worker_Base {
 		}
 	}
 
-	public function sendAnswer($answer, $header='COMPLETE') {
+	/**
+	 * Turn an answer object into a reply
+	 */
+	public function makeReply($answer, $header='COMPLETE') {
 		$jobid = $this->_jobidCurrent;
-		$zanswer = new Zmsg($this->_socketCurrent);
+		$zanswer = new Zmsg($this->frontend);
 		try {
 			//transform answer into zanswer
 			if ($answer->status) {
@@ -296,10 +303,8 @@ class Zmws_Worker_Base {
 			$zanswer->wrap(0x03);
 		}
 		$zanswer->push("MDPC02");
-		$zanswer->send();
-		//work may have taken longer than one HB interval,
-		//we should start timing new HBs from now
-		$this->hbAt = microtime(true) + HEARTBEAT_INTERVAL;
+		//$zanswer->send();
+		return $zanswer;
 	}
 
 	/**
@@ -332,8 +337,9 @@ class Zmws_Worker_Base {
 		$msg_type      = $zmsg->unwrap();
 		$param         = $zmsg->unwrap();
 
+
 		if ($protocol != 'MDPC02') {
-			$this->log( sprintf("Incorrect Protocol [%s] from client  \"%s\"", $msg_type, $client_id), 'E');
+			$this->log( sprintf("Incorrect Protocol [%s] from client  \"%s\"", $msg_type, $client_id_bin), 'E');
 			$zmsgReply = new Zmsg($this->frontend);
 			$zmsgReply->body_set("FAIL: ".$body);
 			$zmsgReply->wrap($body);
@@ -389,7 +395,7 @@ class Zmws_Worker_Base {
 			}
 			$answer    = $x;
 		}
-		$this->sendAnswer($answer);
+		return $this->makeReply($answer);
 	}
 
 	/**
